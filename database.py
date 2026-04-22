@@ -10,15 +10,14 @@ from dateutil.relativedelta import relativedelta
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
-    import psycopg2
-    import psycopg2.extras
+	import psycopg
+    	from psycopg.rows import dict_row
 
-    def get_db():
-        conn = psycopg2.connect(DATABASE_URL)
-        conn.autocommit = False
+def get_db():
+        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row, autocommit=False)
         return conn
 
-    def _execute(conn, sql, params=None):
+def _execute(conn, sql, params=None):
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute(sql, params)
         return cur
