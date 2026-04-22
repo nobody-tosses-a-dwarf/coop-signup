@@ -10,15 +10,15 @@ from dateutil.relativedelta import relativedelta
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 if DATABASE_URL:
-	import psycopg
-    	from psycopg.rows import dict_row
+    import psycopg
+    from psycopg.rows import dict_row
 
-def get_db():
+    def get_db():
         conn = psycopg.connect(DATABASE_URL, row_factory=dict_row, autocommit=False)
         return conn
 
-def _execute(conn, sql, params=None):
-        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    def _execute(conn, sql, params=None):
+        cur = conn.cursor()
         cur.execute(sql, params)
         return cur
 
@@ -196,7 +196,6 @@ def _execute(conn, sql, params=None):
         return member_number
 
 else:
-    # SQLite fallback for local development
     import sqlite3
 
     DB_PATH = os.environ.get("DATABASE_PATH", "coop_members.db")
