@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - {{ coop.name }}</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #F5F5F2;
+            --card-bg: #FFFFFF;
+            --text: #1A1A1A;
+            --text-secondary: #5C5C5C;
+            --text-muted: #8A8A85;
+            --accent: #2D6A4F;
+            --accent-hover: #1E4D38;
+            --accent-light: #D8F3DC;
+            --warning: #E89B25;
+            --warning-bg: #FFF8EC;
+            --success: #2D6A4F;
+            --success-bg: #D8F3DC;
+            --border: #E5E5E0;
+            --radius: 12px;
+            --radius-sm: 8px;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container { max-width: 960px; margin: 0 auto; }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .header h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.5rem;
+        }
+        .header .coop-name {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.6rem 1.1rem;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text);
+            transition: all 0.15s;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-primary {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+        .btn-primary:hover { background: var(--accent-hover); color: #fff; }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 1.25rem;
+        }
+        .stat-card .stat-value {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.75rem;
+            color: var(--accent);
+        }
+        .stat-card .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-top: 0.2rem;
+        }
+
+        .table-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .table-scroll { overflow-x: auto; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th {
+            text-align: left;
+            padding: 0.75rem 1rem;
+            background: var(--bg);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            white-space: nowrap;
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 0.7rem 1rem;
+            border-bottom: 1px solid #f0f0ec;
+            white-space: nowrap;
+        }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: #FAFAF7; }
+
+        .badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 99px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-full { background: var(--success-bg); color: var(--success); }
+        .badge-installment { background: var(--warning-bg); color: var(--warning); }
+        .badge-deferred { background: #F0F0EC; color: var(--text-muted); }
+
+        .payment-bar {
+            width: 80px;
+            height: 6px;
+            background: #E5E5E0;
+            border-radius: 3px;
+            overflow: hidden;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 0.4rem;
+        }
+        .payment-bar-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 3px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        .signup-url {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8rem;
+            font-family: monospace;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>Member Administration</h1>
+                <div class="coop-name">{{ coop.name }}</div>
+                <code class="signup-url" id="signup-url"></code>
+            </div>
+            <div class="actions">
+                <a href="/{{ coop.slug }}" class="btn" target="_blank">View Signup Form</a>
+                <a href="/admin/{{ coop.slug }}/export" class="btn-primary btn">Export for CoPOS</a>
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value">{{ total_members }}</div>
+                <div class="stat-label">Total Members</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">
+                    {{ members|selectattr('member.payment_plan', 'equalto', 'full')|list|length }}
+                </div>
+                <div class="stat-label">Paid in Full</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">
+                    {{ members|selectattr('member.payment_plan', 'equalto', 'installment')|list|length }}
+                </div>
+                <div class="stat-label">Installment Plans</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">
+                    {{ members|selectattr('member.payment_plan', 'equalto', 'deferred')|list|length }}
+                </div>
+                <div class="stat-label">Deferred</div>
+            </div>
+        </div>
+
+        <div class="table-card">
+            <div class="table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name(s)</th>
+                            <th>Type</th>
+                            <th>Plan</th>
+                            <th>Payment Status</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Joined</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in members %}
+                        <tr>
+                            <td><strong>{{ item.member.member_number }}</strong></td>
+                            <td>
+                                {{ item.member.name_1 }}{% if item.member.name_2 %}<br>
+                                <span style="color: var(--text-muted);">{{ item.member.name_2 }}</span>{% endif %}
+                            </td>
+                            <td>{{ item.member.type_label }}</td>
+                            <td>
+                                {% if item.member.payment_plan == 'full' %}
+                                <span class="badge badge-full">Full</span>
+                                {% elif item.member.payment_plan == 'installment' %}
+                                <span class="badge badge-installment">Installment</span>
+                                {% else %}
+                                <span class="badge badge-deferred">Deferred</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="payment-bar">
+                                    <div class="payment-bar-fill"
+                                         style="width: {{ (item.paid_equity / item.total_equity * 100) if item.total_equity else 0 }}%">
+                                    </div>
+                                </div>
+                                ${{ "%.0f"|format(item.paid_equity) }} / ${{ "%.0f"|format(item.total_equity) }}
+                            </td>
+                            <td>{{ item.member.email }}</td>
+                            <td>{{ item.member.phone }}</td>
+                            <td>{{ item.member.date_joined }}</td>
+                        </tr>
+                        {% endfor %}
+
+                        {% if not members %}
+                        <tr>
+                            <td colspan="8" class="empty-state">
+                                No members yet. Share your signup link to get started!
+                            </td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show the full signup URL
+        const urlEl = document.getElementById('signup-url');
+        urlEl.textContent = window.location.origin + '/{{ coop.slug }}';
+    </script>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome, Member #{{ member_number }}!</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&display=swap');
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #FAFAF7;
+            --card-bg: #FFFFFF;
+            --text: #1A1A1A;
+            --text-secondary: #5C5C5C;
+            --accent: #2D6A4F;
+            --accent-light: #D8F3DC;
+            --border: #E5E5E0;
+            --radius: 12px;
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container { max-width: 560px; margin: 0 auto; text-align: center; }
+
+        .checkmark {
+            width: 72px;
+            height: 72px;
+            background: var(--accent-light);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.5rem;
+            animation: pop 0.4s ease-out;
+        }
+        .checkmark svg {
+            width: 36px;
+            height: 36px;
+            stroke: var(--accent);
+            stroke-width: 3;
+            fill: none;
+        }
+
+        @keyframes pop {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .subtitle {
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+        }
+
+        .member-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            text-align: left;
+        }
+
+        .member-number {
+            text-align: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        .member-number .label {
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+        .member-number .number {
+            font-family: 'DM Serif Display', serif;
+            font-size: 2.5rem;
+            color: var(--accent);
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.6rem 0;
+            border-bottom: 1px solid #f0f0ec;
+            font-size: 0.9rem;
+        }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-row .detail-label { color: var(--text-secondary); }
+        .detail-row .detail-value { font-weight: 500; text-align: right; }
+
+        .next-steps {
+            background: var(--accent-light);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            text-align: left;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .next-steps strong {
+            display: block;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="checkmark">
+            <svg viewBox="0 0 24 24">
+                <polyline points="20 6 9 17 4 12" />
+            </svg>
+        </div>
+
+        <h1>Welcome to {{ coop.name }}!</h1>
+        <p class="subtitle">Your membership has been registered.</p>
+
+        <div class="member-card">
+            <div class="member-number">
+                <div class="label">Your Member Number</div>
+                <div class="number">#{{ member_number }}</div>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Name(s)</span>
+                <span class="detail-value">
+                    {{ member.name_1 }}{% if member.name_2 %} &amp; {{ member.name_2 }}{% endif %}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Membership</span>
+                <span class="detail-value">{{ membership_type.label }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Equity</span>
+                <span class="detail-value">${{ "%.0f"|format(membership_type.equity_amount) }}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Payment</span>
+                <span class="detail-value">
+                    {% if member.payment_plan == 'full' %}
+                        Pay in Full
+                    {% elif member.payment_plan == 'installment' %}
+                        {{ membership_type.num_installments }} Quarterly Installments
+                        of ${{ "%.0f"|format(membership_type.equity_amount / membership_type.num_installments) }}
+                    {% else %}
+                        Pay Later
+                    {% endif %}
+                </span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Email</span>
+                <span class="detail-value">{{ member.email }}</span>
+            </div>
+        </div>
+
+        <div class="next-steps">
+            <strong>What happens next?</strong>
+            {% if member.payment_plan == 'full' %}
+                You will receive payment instructions via email. Once payment is received,
+                your membership is fully active and your member benefits will be ready on day one.
+            {% elif member.payment_plan == 'installment' %}
+                You will receive payment instructions via email for your first installment.
+                Subsequent payments will be due quarterly. Your member benefits begin immediately.
+            {% else %}
+                Your membership is reserved. You will receive information about payment
+                options via email. Your member benefits begin once your first payment is received.
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
