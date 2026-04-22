@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Manage Admin Accounts</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&display=swap');
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #F5F5F2; --card-bg: #FFFFFF; --text: #1A1A1A;
+            --text-secondary: #5C5C5C; --text-muted: #8A8A85;
+            --accent: #2D6A4F; --accent-hover: #1E4D38; --accent-light: #D8F3DC;
+            --error: #C1292E; --error-bg: #FEF2F2;
+            --success: #2D6A4F; --success-bg: #D8F3DC;
+            --border: #E5E5E0; --radius: 12px; --radius-sm: 8px;
+        }
+        body {
+            font-family: 'DM Sans', sans-serif; background: var(--bg);
+            color: var(--text); min-height: 100vh; padding: 2rem 1rem;
+        }
+        .container { max-width: 720px; margin: 0 auto; }
+        .header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;
+        }
+        .header h1 { font-family: 'DM Serif Display', serif; font-size: 1.5rem; }
+        .header .subtitle { color: var(--text-secondary); font-size: 0.9rem; }
+        .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+        .btn {
+            display: inline-flex; align-items: center; gap: 0.4rem;
+            padding: 0.6rem 1.1rem; border-radius: var(--radius-sm);
+            font-family: inherit; font-size: 0.85rem; font-weight: 600;
+            text-decoration: none; cursor: pointer; border: 1px solid var(--border);
+            background: var(--card-bg); color: var(--text); transition: all 0.15s;
+        }
+        .btn:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-danger {
+            border-color: var(--error); color: var(--error); background: var(--card-bg);
+        }
+        .btn-danger:hover { background: var(--error-bg); }
+        .btn-small { padding: 0.35rem 0.7rem; font-size: 0.75rem; }
+        .btn-logout { border-color: #ccc; color: var(--text-muted); font-weight: 500; }
+
+        .alert {
+            padding: 0.75rem 1rem; border-radius: var(--radius-sm);
+            font-size: 0.85rem; margin-bottom: 1.5rem;
+        }
+        .alert-error { background: var(--error-bg); color: var(--error); }
+        .alert-success { background: var(--success-bg); color: var(--success); }
+
+        .card {
+            background: var(--card-bg); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1.5rem;
+        }
+        .card h2 {
+            font-family: 'DM Serif Display', serif; font-size: 1.15rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .field { margin-bottom: 1rem; }
+        .field label { display: block; font-weight: 500; font-size: 0.85rem; margin-bottom: 0.3rem; }
+        .field input, .field select {
+            width: 100%; padding: 0.6rem 0.75rem; border: 1px solid var(--border);
+            border-radius: var(--radius-sm); font-family: inherit; font-size: 0.9rem;
+            color: var(--text); background: var(--bg);
+        }
+        .field input:focus, .field select:focus {
+            outline: none; border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(45, 106, 79, 0.1);
+        }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        @media (max-width: 480px) { .form-row { grid-template-columns: 1fr; } }
+
+        .submit-btn {
+            padding: 0.6rem 1.5rem; background: var(--accent); color: #fff;
+            border: none; border-radius: var(--radius-sm); font-family: inherit;
+            font-size: 0.85rem; font-weight: 600; cursor: pointer;
+        }
+        .submit-btn:hover { background: var(--accent-hover); }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th {
+            text-align: left; padding: 0.6rem 0.75rem; background: var(--bg);
+            font-weight: 600; font-size: 0.75rem; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
+        }
+        td {
+            padding: 0.6rem 0.75rem; border-bottom: 1px solid #f0f0ec;
+            vertical-align: middle;
+        }
+        tr:last-child td { border-bottom: none; }
+        .badge {
+            display: inline-block; padding: 0.1rem 0.5rem; border-radius: 99px;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        .badge-super { background: #EDE9FE; color: #6D28D9; }
+        .badge-coop { background: var(--accent-light); color: var(--accent); }
+        .td-actions { display: flex; gap: 0.5rem; align-items: center; }
+        .reset-form { display: inline-flex; gap: 0.25rem; align-items: center; }
+        .reset-form input {
+            width: 100px; padding: 0.3rem 0.5rem; border: 1px solid var(--border);
+            border-radius: 4px; font-size: 0.75rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>Admin Management</h1>
+                <div class="subtitle">Create and manage admin accounts for each co-op</div>
+            </div>
+            <div class="actions">
+                <a href="/admin/logout" class="btn btn-logout">Log Out</a>
+            </div>
+        </div>
+
+        {% if error %}
+        <div class="alert alert-error">{{ error }}</div>
+        {% endif %}
+        {% if success %}
+        <div class="alert alert-success">{{ success }}</div>
+        {% endif %}
+
+        <div class="card">
+            <h2>Add New Admin</h2>
+            <form method="POST" action="/admin/manage/add">
+                <div class="form-row">
+                    <div class="field">
+                        <label for="username">Username</label>
+                        <input type="text" id="username" name="username" placeholder="e.g. chatham_admin" required>
+                    </div>
+                    <div class="field">
+                        <label for="password">Password</label>
+                        <input type="password" id="password" name="password" placeholder="Min 6 characters" required>
+                    </div>
+                </div>
+                <div class="field">
+                    <label for="coop_id">Co-op</label>
+                    <select id="coop_id" name="coop_id" required>
+                        <option value="">Select a co-op...</option>
+                        {% for coop in coops %}
+                        <option value="{{ coop.id }}">{{ coop.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="submit-btn">Create Admin Account</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Admin Accounts</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Role</th>
+                        <th>Co-op</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for admin in admins %}
+                    <tr>
+                        <td><strong>{{ admin.username }}</strong></td>
+                        <td>
+                            {% if admin.is_superadmin %}
+                            <span class="badge badge-super">Superadmin</span>
+                            {% else %}
+                            <span class="badge badge-coop">Co-op Admin</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if admin.coop_name %}
+                            <a href="/admin/{{ admin.coop_slug }}">{{ admin.coop_name }}</a>
+                            {% else %}
+                            All co-ops
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if not admin.is_superadmin %}
+                            <div class="td-actions">
+                                <form method="POST" action="/admin/manage/reset/{{ admin.id }}" class="reset-form">
+                                    <input type="password" name="new_password" placeholder="New password">
+                                    <button type="submit" class="btn btn-small">Reset</button>
+                                </form>
+                                <form method="POST" action="/admin/manage/delete/{{ admin.id }}"
+                                      onsubmit="return confirm('Delete admin account {{ admin.username }}?')">
+                                    <button type="submit" class="btn btn-small btn-danger">Delete</button>
+                                </form>
+                            </div>
+                            {% else %}
+                            <span style="color: var(--text-muted); font-size: 0.8rem;">Protected</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Co-op Dashboards</h2>
+            <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                Quick links to each co-op's admin dashboard:
+            </p>
+            {% for coop in coops %}
+            <a href="/admin/{{ coop.slug }}" class="btn" style="margin-right: 0.5rem; margin-bottom: 0.5rem;">
+                {{ coop.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</body>
+</html>
