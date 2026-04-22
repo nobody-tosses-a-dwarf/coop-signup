@@ -83,6 +83,12 @@
             border-color: var(--accent);
         }
         .btn-primary:hover { background: var(--accent-hover); color: #fff; }
+        .btn-logout {
+            border-color: #ccc;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+        .btn-logout:hover { border-color: var(--error, #C1292E); color: var(--error, #C1292E); }
 
         .stats {
             display: grid;
@@ -200,6 +206,7 @@
             <div class="actions">
                 <a href="/{{ coop.slug }}" class="btn" target="_blank">View Signup Form</a>
                 <a href="/admin/{{ coop.slug }}/export" class="btn-primary btn">Export for CoPOS</a>
+                <a href="/admin/logout" class="btn btn-logout">Log Out</a>
             </div>
         </div>
 
@@ -289,9 +296,8 @@
     </div>
 
     <script>
-        // Show the full signup URL
-        const urlEl = document.getElementById('signup-url');
-        urlEl.textContent = window.location.origin + '/{{ coop.slug }}';
+        var base = window.location.protocol + '//' + window.location.host;
+        document.getElementById('signup-url').textContent = base + '/{{ coop.slug }}';
     </script>
 </body>
 </html>
