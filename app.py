@@ -407,7 +407,7 @@ async def submit_signup(request: Request, slug: str,
         result = db.create_member(
             coop['id'], membership_type_id, first_name, last_name,
             email, phone, address, city, state, zip, payment_plan,
-            agreed_to_terms='on'
+            True
         )
         
         # Get membership type info
@@ -494,7 +494,7 @@ async def create_membership_type(request: Request, slug: str,
     try:
         db.create_membership_type(
             coop['id'], name, equity_amount, dues_amount, signup_fee,
-            allows_installments='on', installment_count
+            True, installment_count
         )
         return RedirectResponse(f"/{slug}/admin", status_code=302)
     except Exception as e:
