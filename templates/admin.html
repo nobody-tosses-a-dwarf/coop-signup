@@ -569,6 +569,15 @@
     </div>
 
     <script>
+        // Prevent accidental scroll-wheel changes to focused number inputs.
+        // Without this, scrolling the page with a number input focused silently
+        // increments/decrements the value by the input's step.
+        document.addEventListener('wheel', function(e) {
+            if (document.activeElement && document.activeElement.type === 'number') {
+                document.activeElement.blur();
+            }
+        }, { passive: true });
+
         // Slug is passed as a JSON-safe string so spaces or special chars do not break rendering.
         var COOP_SLUG = {{ coop.slug | tojson }};
         var BASE_ORIGIN = window.location.origin;  // e.g. "https://coopsignup.com"
