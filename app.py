@@ -279,9 +279,12 @@ async def create_coop(request: Request,
                      slug: str = Form(...),
                      session_data: dict = Depends(require_superadmin)):
     """Create a new co-op"""
+    # Normalize slug: lowercase, replace spaces with hyphens
+    slug = slug.lower().strip().replace(' ', '-')
+    
     # Validate slug
     if not validation.validate_slug(slug):
-        raise HTTPException(status_code=400, detail="Invalid slug format")
+        raise HTTPException(status_code=400, detail="Invalid slug format. Use lowercase letters, numbers, and hyphens only.")
     
     try:
         coop_id = db.create_coop(name, slug)
@@ -415,8 +418,8 @@ async def signup_page(request: Request, slug: str, embed: Optional[str] = None):
             status_code=503
         )
     
-    # Check if membership agreement exists
-    has_agreement = bool(coop.get('membership_agreement'))
+    # Check if membership agreement exists and is not empty
+    has_agreement = bool(coop.get('membership_agreement') and coop.get('membership_agreement').strip())
     
     # Parse embed options
     embed_options = {}
