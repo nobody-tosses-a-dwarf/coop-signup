@@ -427,7 +427,7 @@ def create_superadmin(password: str):
     if USE_POSTGRES:
         cursor.execute('''
             INSERT INTO admin_users (username, email, password_hash, is_superadmin)
-            VALUES (%s, %s, %s, 1)
+            VALUES (%s, %s, %s, TRUE)
             ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash
         ''', ('superadmin', email, hashed))
     else:
@@ -491,7 +491,7 @@ def create_coop_admin(email: str, coop_id: int) -> str:
         if USE_POSTGRES:
             cursor.execute('''
                 INSERT INTO admin_users (username, email, password_hash, coop_id, is_superadmin)
-                VALUES (%s, %s, %s, %s, 0)
+                VALUES (%s, %s, %s, %s, FALSE)
             ''', (email, email, hashed, coop_id))
         else:
             cursor.execute('''
@@ -973,7 +973,7 @@ def get_admin_users(coop_id: Optional[int] = None):
                        c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
-                WHERE au.coop_id = %s AND au.is_superadmin = 0
+                WHERE au.coop_id = %s AND au.is_superadmin = FALSE
                 ORDER BY au.username
             ''', (coop_id,))
         else:
@@ -994,7 +994,7 @@ def get_admin_users(coop_id: Optional[int] = None):
                        c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
-                WHERE au.is_superadmin = 0
+                WHERE au.is_superadmin = FALSE
                 ORDER BY au.username
             ''', ())
         else:

@@ -397,7 +397,7 @@ async def delete_admin(request: Request,
         cursor = conn.cursor()
         
         if db.USE_POSTGRES:
-            cursor.execute('DELETE FROM admin_users WHERE id = %s AND is_superadmin = 0', (admin_id,))
+            cursor.execute('DELETE FROM admin_users WHERE id = %s AND is_superadmin = FALSE', (admin_id,))
         else:
             cursor.execute('DELETE FROM admin_users WHERE id = ? AND is_superadmin = 0', (admin_id,))
         
