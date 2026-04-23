@@ -878,7 +878,7 @@ def get_admin_users(coop_id: Optional[int] = None):
             cursor.execute('''
                 SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
                        au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
-                       au.created_at, c.name as coop_name
+                       c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.coop_id = %s AND au.is_superadmin = 0
@@ -888,7 +888,7 @@ def get_admin_users(coop_id: Optional[int] = None):
             cursor.execute('''
                 SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
                        au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
-                       au.created_at, c.name as coop_name
+                       c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.coop_id = ? AND au.is_superadmin = 0
@@ -899,7 +899,7 @@ def get_admin_users(coop_id: Optional[int] = None):
             cursor.execute('''
                 SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
                        au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
-                       au.created_at, c.name as coop_name
+                       c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.is_superadmin = 0
@@ -909,7 +909,7 @@ def get_admin_users(coop_id: Optional[int] = None):
             cursor.execute('''
                 SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
                        au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
-                       au.created_at, c.name as coop_name
+                       c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.is_superadmin = 0
@@ -929,8 +929,7 @@ def get_admin_users(coop_id: Optional[int] = None):
                 'is_superadmin': row[5],
                 'password_reset_token': row[6],
                 'password_reset_expires': row[7],
-                'created_at': row[8],
-                'coop_name': row[9] if len(row) > 9 else None
+                'coop_name': row[8] if len(row) > 8 else None
             })
     else:
         results = cursor.fetchall()
