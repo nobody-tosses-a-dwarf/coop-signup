@@ -304,7 +304,6 @@
                     <tr>
                         <th>Email</th>
                         <th>Co-op</th>
-                        <th>Created</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -313,7 +312,6 @@
                     <tr>
                         <td>{{ admin.email }}</td>
                         <td>{{ admin.coop_name }}</td>
-                        <td>{{ admin.created_at[:10] if admin.created_at else 'N/A' }}</td>
                         <td>
                             <form method="POST" action="/superadmin/delete-admin/{{ admin.id }}" style="display: inline;" 
                                   onsubmit="return confirm('Delete admin user {{ admin.email }}? This cannot be undone.');">

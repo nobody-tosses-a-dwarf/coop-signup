@@ -582,7 +582,10 @@ def get_coop_by_slug(slug: str):
     cursor = conn.cursor()
     
     if USE_POSTGRES:
-        cursor.execute('SELECT * FROM coops WHERE slug = %s', (slug,))
+        cursor.execute('''
+            SELECT id, name, slug, next_member_number, membership_agreement, created_at
+            FROM coops WHERE slug = %s
+        ''', (slug,))
         row = cursor.fetchone()
         if row:
             result = {
@@ -597,6 +600,37 @@ def get_coop_by_slug(slug: str):
             result = None
     else:
         cursor.execute('SELECT * FROM coops WHERE slug = ?', (slug,))
+        result = cursor.fetchone()
+    
+    conn.close()
+    return result
+
+def get_coop_by_id(coop_id: int):
+    """Get co-op details by id"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT id, name, slug, next_member_number, membership_agreement, created_at
+            FROM coops WHERE id = %s
+        ''', (coop_id,))
+        row = cursor.fetchone()
+        if row:
+            result = {
+                'id': row[0],
+                'name': row[1],
+                'slug': row[2],
+                'next_member_number': row[3],
+                'membership_agreement': row[4],
+                'created_at': row[5]
+            }
+        else:
+            result = None
+    else:
+        cursor.execute('SELECT * FROM coops WHERE id = ?', (coop_id,))
         result = cursor.fetchone()
     
     conn.close()

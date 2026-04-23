@@ -100,10 +100,14 @@ async def login(request: Request, username: str = Form(...), password: str = For
     }
     
     if not user['is_superadmin']:
-        coop = db.get_coop_by_slug(str(user['coop_id']))
-        if coop:
-            session_data['coop_id'] = coop['id']
-            session_data['coop_slug'] = coop['slug']
+        coop = db.get_coop_by_id(user['coop_id'])
+        if not coop:
+            return templates.TemplateResponse("login.html", {
+                "request": request,
+                "error": "Your admin account is not linked to a valid co-op. Contact the superadmin."
+            })
+        session_data['coop_id'] = coop['id']
+        session_data['coop_slug'] = coop['slug']
     
     response = RedirectResponse(
         "/superadmin" if user['is_superadmin'] else f"/{session_data['coop_slug']}/admin",
