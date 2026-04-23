@@ -82,6 +82,32 @@ def migrate_db():
                 END $$;
             """)
             
+            # Add allows_installments to membership_types if it doesn't exist
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='membership_types' AND column_name='allows_installments'
+                    ) THEN
+                        ALTER TABLE membership_types ADD COLUMN allows_installments BOOLEAN DEFAULT TRUE;
+                    END IF;
+                END $$;
+            """)
+            
+            # Add installment_count to membership_types if it doesn't exist
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='membership_types' AND column_name='installment_count'
+                    ) THEN
+                        ALTER TABLE membership_types ADD COLUMN installment_count INTEGER DEFAULT 4;
+                    END IF;
+                END $$;
+            """)
+            
             # Add membership_agreement to coops if it doesn't exist
             cursor.execute("""
                 DO $$ 
@@ -128,6 +154,16 @@ def migrate_db():
             try:
                 cursor.execute('ALTER TABLE membership_types ADD COLUMN coop_id INTEGER REFERENCES coops(id)')
                 cursor.execute('UPDATE membership_types SET coop_id = (SELECT id FROM coops LIMIT 1)')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE membership_types ADD COLUMN allows_installments INTEGER DEFAULT 1')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE membership_types ADD COLUMN installment_count INTEGER DEFAULT 4')
             except:
                 pass
             
