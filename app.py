@@ -334,10 +334,15 @@ async def delete_coop(request: Request,
             cursor.execute('SELECT id FROM members WHERE coop_id = %s', (coop_id,))
             member_ids = [row[0] for row in cursor.fetchall()]
             
-            # 2. Delete payment schedules for those members
+            # 2. Delete payment schedules AND old payments table for those members
             if member_ids:
                 placeholders = ','.join(['%s'] * len(member_ids))
                 cursor.execute(f'DELETE FROM payment_schedules WHERE member_id IN ({placeholders})', member_ids)
+                # Also delete from old 'payments' table if it exists
+                try:
+                    cursor.execute(f'DELETE FROM payments WHERE member_id IN ({placeholders})', member_ids)
+                except:
+                    pass  # Table might not exist in new schema
             
             # 3. Delete members
             cursor.execute('DELETE FROM members WHERE coop_id = %s', (coop_id,))
@@ -358,6 +363,10 @@ async def delete_coop(request: Request,
             if member_ids:
                 placeholders = ','.join(['?'] * len(member_ids))
                 cursor.execute(f'DELETE FROM payment_schedules WHERE member_id IN ({placeholders})', member_ids)
+                try:
+                    cursor.execute(f'DELETE FROM payments WHERE member_id IN ({placeholders})', member_ids)
+                except:
+                    pass
             
             cursor.execute('DELETE FROM members WHERE coop_id = ?', (coop_id,))
             cursor.execute('DELETE FROM membership_types WHERE coop_id = ?', (coop_id,))
