@@ -6,7 +6,7 @@ from itsdangerous import URLSafeTimedSerializer
 import database as db
 import copos_export
 import validation
-import email as email_module
+import email_service
 import qrcode
 from io import BytesIO
 import os
@@ -141,7 +141,7 @@ async def forgot_password(request: Request, email: str = Form(...)):
     token = db.create_password_reset_token(email)
     
     if token:
-        await email_module.send_password_reset_email(email, token)
+        await email_service.send_password_reset_email(email, token)
         return templates.TemplateResponse("forgot_password.html", {
             "request": request,
             "sent": True,
@@ -307,7 +307,7 @@ async def create_admin(request: Request,
         coop_name = next((c['name'] for c in coops if c['id'] == coop_id), "Unknown Co-op")
         
         # Send welcome email with temporary password
-        await email_module.send_admin_welcome_email(email, coop_name, temp_password)
+        await email_service.send_admin_welcome_email(email, coop_name, temp_password)
         
         return RedirectResponse("/superadmin", status_code=302)
     except Exception as e:
@@ -497,7 +497,7 @@ async def submit_signup(request: Request, slug: str,
         # Send confirmation email
         if membership_type:
             total_amount = result['equity_amount'] + result['signup_fee']
-            await email_module.send_member_confirmation_email(
+            await email_service.send_member_confirmation_email(
                 email, coop['name'], result['member_number'],
                 first_name, membership_type['name'], total_amount, payment_plan
             )
