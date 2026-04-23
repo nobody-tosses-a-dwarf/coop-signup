@@ -185,13 +185,71 @@ def migrate_db():
         conn.close()
 
 def init_db():
-    """Initialize database schema"""
+    """Initialize database schema.
+    
+    PRE-RELEASE behavior: if legacy schema markers are detected on PostgreSQL,
+    all tables are dropped so CREATE TABLE IF NOT EXISTS below can recreate
+    them with the current expected columns. Once the legacy markers are gone
+    this block is a no-op. Intended to be removed before production launch.
+    """
     conn = get_connection()
     if USE_POSTGRES:
         cursor = conn.cursor()
     else:
         conn.row_factory = dict_factory
         cursor = conn.cursor()
+    
+    # ---- PRE-RELEASE: detect and wipe legacy schema ----
+    if USE_POSTGRES:
+        cursor.execute("""
+            SELECT
+              EXISTS(SELECT 1 FROM information_schema.columns
+                     WHERE table_name='coops' AND column_name='logo_url')
+              OR EXISTS(SELECT 1 FROM information_schema.columns
+                        WHERE table_name='members' AND column_name='name_1')
+              OR (EXISTS(SELECT 1 FROM information_schema.tables
+                         WHERE table_name='coops' AND table_schema='public')
+                  AND NOT EXISTS(SELECT 1 FROM information_schema.columns
+                                 WHERE table_name='coops' AND column_name='next_member_number'))
+        """)
+        legacy = cursor.fetchone()[0]
+        if legacy:
+            print("database.py: Legacy schema detected - dropping all tables for clean recreate.")
+            for tbl in ['payment_schedules', 'payments', 'members', 'membership_types', 'admin_users', 'coops']:
+                cursor.execute(f"DROP TABLE IF EXISTS {tbl} CASCADE")
+            conn.commit()
+    else:
+        # SQLite legacy detection: check for any known legacy column
+        legacy = False
+        try:
+            cursor.execute("SELECT logo_url FROM coops LIMIT 1")
+            legacy = True
+        except Exception:
+            pass
+        if not legacy:
+            try:
+                cursor.execute("SELECT name_1 FROM members LIMIT 1")
+                legacy = True
+            except Exception:
+                pass
+        if not legacy:
+            # coops table exists but missing next_member_number?
+            try:
+                cursor.execute("SELECT 1 FROM coops LIMIT 1")
+                try:
+                    cursor.execute("SELECT next_member_number FROM coops LIMIT 1")
+                except Exception:
+                    legacy = True
+            except Exception:
+                pass
+        if legacy:
+            print("database.py: Legacy schema detected - dropping all tables for clean recreate.")
+            for tbl in ['payment_schedules', 'payments', 'members', 'membership_types', 'admin_users', 'coops']:
+                try:
+                    cursor.execute(f"DROP TABLE IF EXISTS {tbl}")
+                except Exception:
+                    pass
+            conn.commit()
     
     # Coops table
     cursor.execute('''
