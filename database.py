@@ -1,283 +1,771 @@
-"""
-Database models for co-op membership signup system.
-Uses PostgreSQL if DATABASE_URL is set, otherwise falls back to SQLite.
-"""
-
-import os
+import sqlite3
+import psycopg
 import hashlib
 import secrets
-from datetime import datetime, date
-from dateutil.relativedelta import relativedelta
+import os
+from datetime import datetime, timedelta
+from typing import Optional
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
+# Determine which database to use
+DATABASE_URL = os.getenv('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL is not None
 
+def get_connection():
+    """Get database connection based on environment"""
+    if USE_POSTGRES:
+        return psycopg.connect(DATABASE_URL)
+    else:
+        return sqlite3.connect('coops.db', check_same_thread=False)
 
-def hash_password(password):
-    salt = secrets.token_hex(16)
-    hashed = hashlib.sha256((salt + password).encode()).hexdigest()
-    return salt + ":" + hashed
-
-
-def verify_password(password, stored):
-    if ":" not in stored:
-        return False
-    salt, hashed = stored.split(":", 1)
-    return hashlib.sha256((salt + password).encode()).hexdigest() == hashed
-
-
-if DATABASE_URL:
-    import psycopg
-    from psycopg.rows import dict_row
-
-    def get_db():
-        conn = psycopg.connect(DATABASE_URL, row_factory=dict_row, autocommit=False)
-        return conn
-
-    def _execute(conn, sql, params=None):
-        cur = conn.cursor()
-        cur.execute(sql, params)
-        return cur
-
-    def _fetchone(conn, sql, params=None):
-        cur = _execute(conn, sql, params)
-        return cur.fetchone()
-
-    def _fetchall(conn, sql, params=None):
-        cur = _execute(conn, sql, params)
-        return cur.fetchall()
-
-    PH = "%s"
-
-else:
-    import sqlite3
-
-    DB_PATH = os.environ.get("DATABASE_PATH", "coop_members.db")
-
-    def get_db():
-        conn = sqlite3.connect(DB_PATH)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA foreign_keys=ON")
-        return conn
-
-    def _fetchone(conn, sql, params=None):
-        return conn.execute(sql, params or ()).fetchone()
-
-    def _fetchall(conn, sql, params=None):
-        return conn.execute(sql, params or ()).fetchall()
-
-    PH = "?"
-
+def dict_factory(cursor, row):
+    """Convert SQLite rows to dictionaries"""
+    d = {}
+    for idx, col in enumerate(cursor.description):
+        d[col[0]] = row[idx]
+    return d
 
 def init_db():
-    conn = get_db()
-    if DATABASE_URL:
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS coops (
-                id SERIAL PRIMARY KEY, slug TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
-                city TEXT, state TEXT, logo_url TEXT, welcome_text TEXT,
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-            CREATE TABLE IF NOT EXISTS membership_types (
-                id SERIAL PRIMARY KEY, coop_id INTEGER NOT NULL REFERENCES coops(id),
-                name TEXT NOT NULL, label TEXT NOT NULL, equity_amount REAL NOT NULL,
-                dues_amount REAL DEFAULT 0, signup_fee REAL DEFAULT 0,
-                installments_allowed INTEGER DEFAULT 0, num_installments INTEGER DEFAULT 1,
-                installment_interval_months INTEGER DEFAULT 3, active INTEGER DEFAULT 1,
-                UNIQUE(coop_id, name)
-            );
-            CREATE TABLE IF NOT EXISTS members (
-                id SERIAL PRIMARY KEY, coop_id INTEGER NOT NULL REFERENCES coops(id),
-                member_number INTEGER NOT NULL, name_1 TEXT NOT NULL, name_2 TEXT,
-                street_address TEXT NOT NULL, city TEXT NOT NULL, state TEXT NOT NULL,
-                zip_code TEXT NOT NULL, phone TEXT NOT NULL, email TEXT NOT NULL,
-                membership_type_id INTEGER NOT NULL REFERENCES membership_types(id),
-                payment_plan TEXT NOT NULL CHECK(payment_plan IN ('full','installment','deferred')),
-                date_joined TEXT NOT NULL, member_due_date TEXT,
-                active INTEGER DEFAULT 1, newsletter INTEGER DEFAULT 1,
-                voting_privileges INTEGER DEFAULT 1, tax_exempt INTEGER DEFAULT 0,
-                senior_discount INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW(),
-                UNIQUE(coop_id, member_number)
-            );
-            CREATE TABLE IF NOT EXISTS payments (
-                id SERIAL PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id),
-                installment_number INTEGER NOT NULL, due_date TEXT NOT NULL,
-                equity_amount REAL DEFAULT 0, dues_amount REAL DEFAULT 0,
-                paid INTEGER DEFAULT 0, paid_date TEXT, stripe_payment_id TEXT,
-                created_at TIMESTAMP DEFAULT NOW()
-            );
-            CREATE TABLE IF NOT EXISTS admin_users (
-                id SERIAL PRIMARY KEY, username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL, coop_id INTEGER REFERENCES coops(id),
-                is_superadmin INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW()
-            );
-        """)
+    """Initialize database schema"""
+    conn = get_connection()
+    if USE_POSTGRES:
+        cursor = conn.cursor()
+    else:
+        conn.row_factory = dict_factory
+        cursor = conn.cursor()
+    
+    # Coops table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS coops (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL UNIQUE,
+            next_member_number INTEGER DEFAULT 1,
+            membership_agreement TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS coops (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT NOT NULL UNIQUE,
+            next_member_number INTEGER DEFAULT 1,
+            membership_agreement TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Membership types table (now linked to specific co-op)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS membership_types (
+            id SERIAL PRIMARY KEY,
+            coop_id INTEGER NOT NULL REFERENCES coops(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            equity_amount DECIMAL(10,2) NOT NULL,
+            dues_amount DECIMAL(10,2) DEFAULT 0,
+            signup_fee DECIMAL(10,2) DEFAULT 0,
+            allows_installments BOOLEAN DEFAULT TRUE,
+            installment_count INTEGER DEFAULT 4,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(coop_id, name)
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS membership_types (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coop_id INTEGER NOT NULL REFERENCES coops(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            equity_amount REAL NOT NULL,
+            dues_amount REAL DEFAULT 0,
+            signup_fee REAL DEFAULT 0,
+            allows_installments INTEGER DEFAULT 1,
+            installment_count INTEGER DEFAULT 4,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(coop_id, name)
+        )
+    ''')
+    
+    # Members table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS members (
+            id SERIAL PRIMARY KEY,
+            coop_id INTEGER NOT NULL REFERENCES coops(id) ON DELETE CASCADE,
+            membership_type_id INTEGER NOT NULL REFERENCES membership_types(id),
+            member_number INTEGER NOT NULL,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            address TEXT NOT NULL,
+            city TEXT NOT NULL,
+            state TEXT NOT NULL,
+            zip TEXT NOT NULL,
+            payment_plan TEXT NOT NULL,
+            total_equity DECIMAL(10,2) NOT NULL,
+            total_dues DECIMAL(10,2) DEFAULT 0,
+            signup_fee DECIMAL(10,2) DEFAULT 0,
+            agreed_to_terms BOOLEAN DEFAULT FALSE,
+            signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(coop_id, member_number)
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS members (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coop_id INTEGER NOT NULL REFERENCES coops(id) ON DELETE CASCADE,
+            membership_type_id INTEGER NOT NULL REFERENCES membership_types(id),
+            member_number INTEGER NOT NULL,
+            first_name TEXT NOT NULL,
+            last_name TEXT NOT NULL,
+            email TEXT,
+            phone TEXT,
+            address TEXT NOT NULL,
+            city TEXT NOT NULL,
+            state TEXT NOT NULL,
+            zip TEXT NOT NULL,
+            payment_plan TEXT NOT NULL,
+            total_equity REAL NOT NULL,
+            total_dues REAL DEFAULT 0,
+            signup_fee REAL DEFAULT 0,
+            agreed_to_terms INTEGER DEFAULT 0,
+            signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(coop_id, member_number)
+        )
+    ''')
+    
+    # Payment schedules table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS payment_schedules (
+            id SERIAL PRIMARY KEY,
+            member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+            installment_number INTEGER NOT NULL,
+            due_date DATE NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            paid BOOLEAN DEFAULT FALSE,
+            paid_date TIMESTAMP,
+            UNIQUE(member_id, installment_number)
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS payment_schedules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+            installment_number INTEGER NOT NULL,
+            due_date DATE NOT NULL,
+            amount REAL NOT NULL,
+            paid INTEGER DEFAULT 0,
+            paid_date TIMESTAMP,
+            UNIQUE(member_id, installment_number)
+        )
+    ''')
+    
+    # Admin users table (updated with email and password reset)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id SERIAL PRIMARY KEY,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            coop_id INTEGER REFERENCES coops(id) ON DELETE CASCADE,
+            is_superadmin BOOLEAN DEFAULT FALSE,
+            password_reset_token TEXT,
+            password_reset_expires TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS admin_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            coop_id INTEGER REFERENCES coops(id) ON DELETE CASCADE,
+            is_superadmin INTEGER DEFAULT 0,
+            password_reset_token TEXT,
+            password_reset_expires TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def hash_password(password: str) -> str:
+    """Hash a password using SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def generate_temp_password(length: int = 12) -> str:
+    """Generate a secure random temporary password"""
+    alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+def generate_reset_token() -> str:
+    """Generate a secure password reset token"""
+    return secrets.token_urlsafe(32)
+
+def create_superadmin(password: str):
+    """Create or update the superadmin account"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    hashed = hash_password(password)
+    email = "superadmin@coopsignup.com"
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO admin_users (username, email, password_hash, is_superadmin)
+            VALUES (%s, %s, %s, TRUE)
+            ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash
+        ''', ('superadmin', email, hashed))
+    else:
+        cursor.execute('SELECT id FROM admin_users WHERE username = ?', ('superadmin',))
+        if cursor.fetchone():
+            cursor.execute('UPDATE admin_users SET password_hash = ?, email = ? WHERE username = ?',
+                         (hashed, email, 'superadmin'))
+        else:
+            cursor.execute('''
+                INSERT INTO admin_users (username, email, password_hash, is_superadmin)
+                VALUES (?, ?, ?, 1)
+            ''', ('superadmin', email, hashed))
+    
+    conn.commit()
+    conn.close()
+
+def verify_admin(username: str, password: str):
+    """Verify admin credentials"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    hashed = hash_password(password)
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT id, username, email, coop_id, is_superadmin
+            FROM admin_users WHERE username = %s AND password_hash = %s
+        ''', (username, hashed))
+        row = cursor.fetchone()
+        if row:
+            result = {
+                'id': row[0],
+                'username': row[1],
+                'email': row[2],
+                'coop_id': row[3],
+                'is_superadmin': row[4]
+            }
+        else:
+            result = None
+    else:
+        cursor.execute('''
+            SELECT id, username, email, coop_id, is_superadmin
+            FROM admin_users WHERE username = ? AND password_hash = ?
+        ''', (username, hashed))
+        result = cursor.fetchone()
+    
+    conn.close()
+    return result
+
+def create_coop_admin(email: str, coop_id: int) -> str:
+    """Create a co-op admin user with email as username and return temporary password"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    temp_password = generate_temp_password()
+    hashed = hash_password(temp_password)
+    
+    try:
+        if USE_POSTGRES:
+            cursor.execute('''
+                INSERT INTO admin_users (username, email, password_hash, coop_id, is_superadmin)
+                VALUES (%s, %s, %s, %s, FALSE)
+            ''', (email, email, hashed, coop_id))
+        else:
+            cursor.execute('''
+                INSERT INTO admin_users (username, email, password_hash, coop_id, is_superadmin)
+                VALUES (?, ?, ?, ?, 0)
+            ''', (email, email, hashed, coop_id))
+        
         conn.commit()
-    else:
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS coops (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, slug TEXT UNIQUE NOT NULL,
-                name TEXT NOT NULL, city TEXT, state TEXT, logo_url TEXT,
-                welcome_text TEXT, created_at TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS membership_types (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                coop_id INTEGER NOT NULL REFERENCES coops(id),
-                name TEXT NOT NULL, label TEXT NOT NULL, equity_amount REAL NOT NULL,
-                dues_amount REAL DEFAULT 0, signup_fee REAL DEFAULT 0,
-                installments_allowed INTEGER DEFAULT 0, num_installments INTEGER DEFAULT 1,
-                installment_interval_months INTEGER DEFAULT 3, active INTEGER DEFAULT 1,
-                UNIQUE(coop_id, name)
-            );
-            CREATE TABLE IF NOT EXISTS members (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                coop_id INTEGER NOT NULL REFERENCES coops(id),
-                member_number INTEGER NOT NULL, name_1 TEXT NOT NULL, name_2 TEXT,
-                street_address TEXT NOT NULL, city TEXT NOT NULL, state TEXT NOT NULL,
-                zip_code TEXT NOT NULL, phone TEXT NOT NULL, email TEXT NOT NULL,
-                membership_type_id INTEGER NOT NULL REFERENCES membership_types(id),
-                payment_plan TEXT NOT NULL CHECK(payment_plan IN ('full','installment','deferred')),
-                date_joined TEXT NOT NULL, member_due_date TEXT,
-                active INTEGER DEFAULT 1, newsletter INTEGER DEFAULT 1,
-                voting_privileges INTEGER DEFAULT 1, tax_exempt INTEGER DEFAULT 0,
-                senior_discount INTEGER DEFAULT 0,
-                created_at TEXT DEFAULT (datetime('now')),
-                UNIQUE(coop_id, member_number)
-            );
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                member_id INTEGER NOT NULL REFERENCES members(id),
-                installment_number INTEGER NOT NULL, due_date TEXT NOT NULL,
-                equity_amount REAL DEFAULT 0, dues_amount REAL DEFAULT 0,
-                paid INTEGER DEFAULT 0, paid_date TEXT, stripe_payment_id TEXT,
-                created_at TEXT DEFAULT (datetime('now'))
-            );
-            CREATE TABLE IF NOT EXISTS admin_users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL, coop_id INTEGER REFERENCES coops(id),
-                is_superadmin INTEGER DEFAULT 0, created_at TEXT DEFAULT (datetime('now'))
-            );
-        """)
-        conn.commit()
-    conn.close()
-
-
-def seed_chatham():
-    conn = get_db()
-    existing = _fetchone(conn, "SELECT id FROM coops WHERE slug = 'chatham'")
-    if existing:
+        return temp_password
+    except Exception as e:
+        conn.rollback()
+        raise e
+    finally:
         conn.close()
-        return
-    _execute(conn, """
-        INSERT INTO coops (slug, name, city, state, welcome_text)
-        VALUES ('chatham', 'Chatham Real Food Market Co-op', 'Chatham', 'NY',
-                'Join your community-owned grocery store! Membership is by household.')
-    """)
-    coop = _fetchone(conn, "SELECT id FROM coops WHERE slug = 'chatham'")
-    coop_id = coop["id"]
-    _execute(conn, f"""
-        INSERT INTO membership_types (coop_id, name, label, equity_amount, dues_amount,
-            signup_fee, installments_allowed, num_installments, installment_interval_months)
-        VALUES ({PH}, 'household', 'Household Membership', 100.00, 0, 0, 1, 4, 3)
-    """, (coop_id,))
-    _execute(conn, f"""
-        INSERT INTO membership_types (coop_id, name, label, equity_amount, dues_amount,
-            signup_fee, installments_allowed, num_installments, installment_interval_months)
-        VALUES ({PH}, 'business', 'Business Membership', 500.00, 0, 0, 1, 4, 3)
-    """, (coop_id,))
+
+def change_admin_password(admin_id: int, new_password: str):
+    """Change an admin user's password"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    hashed = hash_password(new_password)
+    
+    if USE_POSTGRES:
+        cursor.execute('UPDATE admin_users SET password_hash = %s WHERE id = %s',
+                      (hashed, admin_id))
+    else:
+        cursor.execute('UPDATE admin_users SET password_hash = ? WHERE id = ?',
+                      (hashed, admin_id))
+    
     conn.commit()
     conn.close()
 
+def create_password_reset_token(email: str) -> Optional[str]:
+    """Create a password reset token for an admin user"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    token = generate_reset_token()
+    expires = datetime.now() + timedelta(hours=24)
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE admin_users 
+            SET password_reset_token = %s, password_reset_expires = %s
+            WHERE email = %s
+            RETURNING id
+        ''', (token, expires, email))
+        result = cursor.fetchone()
+    else:
+        cursor.execute('SELECT id FROM admin_users WHERE email = ?', (email,))
+        result = cursor.fetchone()
+        if result:
+            cursor.execute('''
+                UPDATE admin_users 
+                SET password_reset_token = ?, password_reset_expires = ?
+                WHERE email = ?
+            ''', (token, expires, email))
+    
+    conn.commit()
+    conn.close()
+    
+    return token if result else None
 
-def seed_superadmin():
-    conn = get_db()
-    existing = _fetchone(conn, "SELECT id FROM admin_users WHERE is_superadmin = 1")
-    if existing:
+def verify_reset_token(token: str) -> Optional[dict]:
+    """Verify a password reset token and return admin info if valid"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT id, email, username
+            FROM admin_users 
+            WHERE password_reset_token = %s AND password_reset_expires > %s
+        ''', (token, datetime.now()))
+        row = cursor.fetchone()
+        if row:
+            result = {'id': row[0], 'email': row[1], 'username': row[2]}
+        else:
+            result = None
+    else:
+        cursor.execute('''
+            SELECT id, email, username
+            FROM admin_users 
+            WHERE password_reset_token = ? AND password_reset_expires > ?
+        ''', (token, datetime.now()))
+        result = cursor.fetchone()
+    
+    conn.close()
+    return result
+
+def reset_password_with_token(token: str, new_password: str) -> bool:
+    """Reset password using a valid token"""
+    admin = verify_reset_token(token)
+    if not admin:
+        return False
+    
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    hashed = hash_password(new_password)
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE admin_users 
+            SET password_hash = %s, password_reset_token = NULL, password_reset_expires = NULL
+            WHERE id = %s
+        ''', (hashed, admin['id']))
+    else:
+        cursor.execute('''
+            UPDATE admin_users 
+            SET password_hash = ?, password_reset_token = NULL, password_reset_expires = NULL
+            WHERE id = ?
+        ''', (hashed, admin['id']))
+    
+    conn.commit()
+    conn.close()
+    return True
+
+def create_coop(name: str, slug: str) -> int:
+    """Create a new co-op"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO coops (name, slug) VALUES (%s, %s) RETURNING id
+        ''', (name, slug))
+        coop_id = cursor.fetchone()[0]
+    else:
+        cursor.execute('''
+            INSERT INTO coops (name, slug) VALUES (?, ?)
+        ''', (name, slug))
+        coop_id = cursor.lastrowid
+    
+    conn.commit()
+    conn.close()
+    return coop_id
+
+def get_coop_by_slug(slug: str):
+    """Get co-op details by slug"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('SELECT * FROM coops WHERE slug = %s', (slug,))
+        row = cursor.fetchone()
+        if row:
+            result = {
+                'id': row[0],
+                'name': row[1],
+                'slug': row[2],
+                'next_member_number': row[3],
+                'membership_agreement': row[4],
+                'created_at': row[5]
+            }
+        else:
+            result = None
+    else:
+        cursor.execute('SELECT * FROM coops WHERE slug = ?', (slug,))
+        result = cursor.fetchone()
+    
+    conn.close()
+    return result
+
+def update_membership_agreement(coop_id: int, agreement_text: str):
+    """Update membership agreement for a co-op"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('UPDATE coops SET membership_agreement = %s WHERE id = %s',
+                      (agreement_text, coop_id))
+    else:
+        cursor.execute('UPDATE coops SET membership_agreement = ? WHERE id = ?',
+                      (agreement_text, coop_id))
+    
+    conn.commit()
+    conn.close()
+
+def create_membership_type(coop_id: int, name: str, equity_amount: float, 
+                          dues_amount: float = 0, signup_fee: float = 0,
+                          allows_installments: bool = True, installment_count: int = 4):
+    """Create a membership type for a specific co-op"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO membership_types 
+            (coop_id, name, equity_amount, dues_amount, signup_fee, allows_installments, installment_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (coop_id, name, equity_amount, dues_amount, signup_fee, allows_installments, installment_count))
+        type_id = cursor.fetchone()[0]
+    else:
+        cursor.execute('''
+            INSERT INTO membership_types 
+            (coop_id, name, equity_amount, dues_amount, signup_fee, allows_installments, installment_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (coop_id, name, equity_amount, dues_amount, signup_fee, 
+              1 if allows_installments else 0, installment_count))
+        type_id = cursor.lastrowid
+    
+    conn.commit()
+    conn.close()
+    return type_id
+
+def get_membership_types(coop_id: int):
+    """Get all membership types for a co-op"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT id, name, equity_amount, dues_amount, signup_fee, 
+                   allows_installments, installment_count
+            FROM membership_types WHERE coop_id = %s
+            ORDER BY equity_amount
+        ''', (coop_id,))
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            results.append({
+                'id': row[0],
+                'name': row[1],
+                'equity_amount': row[2],
+                'dues_amount': row[3],
+                'signup_fee': row[4],
+                'allows_installments': row[5],
+                'installment_count': row[6]
+            })
+    else:
+        cursor.execute('''
+            SELECT id, name, equity_amount, dues_amount, signup_fee, 
+                   allows_installments, installment_count
+            FROM membership_types WHERE coop_id = ?
+            ORDER BY equity_amount
+        ''', (coop_id,))
+        results = cursor.fetchall()
+    
+    conn.close()
+    return results
+
+def delete_membership_type(type_id: int, coop_id: int):
+    """Delete a membership type (with co-op ownership verification)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('DELETE FROM membership_types WHERE id = %s AND coop_id = %s',
+                      (type_id, coop_id))
+    else:
+        cursor.execute('DELETE FROM membership_types WHERE id = ? AND coop_id = ?',
+                      (type_id, coop_id))
+    
+    conn.commit()
+    conn.close()
+
+def create_member(coop_id: int, membership_type_id: int, first_name: str, 
+                 last_name: str, email: str, phone: str, address: str,
+                 city: str, state: str, zip_code: str, payment_plan: str,
+                 agreed_to_terms: bool = True):
+    """Create a new member and return member info"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    # Get membership type details
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT equity_amount, dues_amount, signup_fee, installment_count
+            FROM membership_types WHERE id = %s
+        ''', (membership_type_id,))
+    else:
+        cursor.execute('''
+            SELECT equity_amount, dues_amount, signup_fee, installment_count
+            FROM membership_types WHERE id = ?
+        ''', (membership_type_id,))
+    
+    type_info = cursor.fetchone()
+    if not type_info:
         conn.close()
-        return
-    password = os.environ.get("ADMIN_PASSWORD", "changeme")
-    _execute(conn, f"""
-        INSERT INTO admin_users (username, password_hash, coop_id, is_superadmin)
-        VALUES ('admin', {PH}, NULL, 1)
-    """, (hash_password(password),))
+        raise ValueError("Invalid membership type")
+    
+    equity_amount = type_info[0]
+    dues_amount = type_info[1]
+    signup_fee = type_info[2]
+    installment_count = type_info[3]
+    
+    # Get and increment member number
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE coops SET next_member_number = next_member_number + 1 
+            WHERE id = %s RETURNING next_member_number - 1
+        ''', (coop_id,))
+        member_number = cursor.fetchone()[0]
+    else:
+        cursor.execute('SELECT next_member_number FROM coops WHERE id = ?', (coop_id,))
+        member_number = cursor.fetchone()[0]
+        cursor.execute('UPDATE coops SET next_member_number = ? WHERE id = ?',
+                      (member_number + 1, coop_id))
+    
+    # Create member
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO members 
+            (coop_id, membership_type_id, member_number, first_name, last_name, 
+             email, phone, address, city, state, zip, payment_plan,
+             total_equity, total_dues, signup_fee, agreed_to_terms)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+        ''', (coop_id, membership_type_id, member_number, first_name, last_name,
+              email, phone, address, city, state, zip_code, payment_plan,
+              equity_amount, dues_amount, signup_fee, agreed_to_terms))
+        member_id = cursor.fetchone()[0]
+    else:
+        cursor.execute('''
+            INSERT INTO members 
+            (coop_id, membership_type_id, member_number, first_name, last_name, 
+             email, phone, address, city, state, zip, payment_plan,
+             total_equity, total_dues, signup_fee, agreed_to_terms)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (coop_id, membership_type_id, member_number, first_name, last_name,
+              email, phone, address, city, state, zip_code, payment_plan,
+              equity_amount, dues_amount, signup_fee, 1 if agreed_to_terms else 0))
+        member_id = cursor.lastrowid
+    
+    # Create payment schedule if installments
+    if payment_plan == 'installments':
+        total_amount = equity_amount + signup_fee
+        installment_amount = total_amount / installment_count
+        
+        for i in range(installment_count):
+            due_date = datetime.now() + timedelta(days=90 * i)
+            
+            if USE_POSTGRES:
+                cursor.execute('''
+                    INSERT INTO payment_schedules (member_id, installment_number, due_date, amount)
+                    VALUES (%s, %s, %s, %s)
+                ''', (member_id, i + 1, due_date.date(), installment_amount))
+            else:
+                cursor.execute('''
+                    INSERT INTO payment_schedules (member_id, installment_number, due_date, amount)
+                    VALUES (?, ?, ?, ?)
+                ''', (member_id, i + 1, due_date.date(), installment_amount))
+    
     conn.commit()
     conn.close()
+    
+    return {
+        'member_id': member_id,
+        'member_number': member_number,
+        'equity_amount': equity_amount,
+        'dues_amount': dues_amount,
+        'signup_fee': signup_fee
+    }
 
-
-def get_next_member_number(conn, coop_id):
-    row = _fetchone(conn,
-        f"SELECT COALESCE(MAX(member_number), 0) + 1 as next_num FROM members WHERE coop_id = {PH}",
-        (coop_id,))
-    return row["next_num"]
-
-
-def create_member(conn, coop_id, data):
-    member_number = get_next_member_number(conn, coop_id)
-    join_date = date.today().isoformat()
-    mtype = _fetchone(conn, f"SELECT * FROM membership_types WHERE id = {PH}", (data["membership_type_id"],))
-
-    if data["payment_plan"] == "installment":
-        due_date = (date.today() + relativedelta(months=mtype["installment_interval_months"] * mtype["num_installments"])).isoformat()
+def get_all_members(coop_id: int):
+    """Get all members for a co-op with their membership type info"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT m.*, mt.name as membership_type_name
+            FROM members m
+            JOIN membership_types mt ON m.membership_type_id = mt.id
+            WHERE m.coop_id = %s
+            ORDER BY m.member_number
+        ''', (coop_id,))
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            results.append({
+                'id': row[0],
+                'coop_id': row[1],
+                'membership_type_id': row[2],
+                'member_number': row[3],
+                'first_name': row[4],
+                'last_name': row[5],
+                'email': row[6],
+                'phone': row[7],
+                'address': row[8],
+                'city': row[9],
+                'state': row[10],
+                'zip': row[11],
+                'payment_plan': row[12],
+                'total_equity': row[13],
+                'total_dues': row[14],
+                'signup_fee': row[15],
+                'agreed_to_terms': row[16],
+                'signed_up_at': row[17],
+                'membership_type_name': row[18]
+            })
     else:
-        due_date = join_date
+        cursor.execute('''
+            SELECT m.*, mt.name as membership_type_name
+            FROM members m
+            JOIN membership_types mt ON m.membership_type_id = mt.id
+            WHERE m.coop_id = ?
+            ORDER BY m.member_number
+        ''', (coop_id,))
+        results = cursor.fetchall()
+    
+    conn.close()
+    return results
 
-    _execute(conn, f"""
-        INSERT INTO members (coop_id, member_number, name_1, name_2, street_address,
-            city, state, zip_code, phone, email, membership_type_id, payment_plan,
-            date_joined, member_due_date)
-        VALUES ({PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH}, {PH})
-    """, (
-        coop_id, member_number, data["name_1"], data.get("name_2", ""),
-        data["street_address"], data["city"], data["state"], data["zip_code"],
-        data["phone"], data["email"], data["membership_type_id"],
-        data["payment_plan"], join_date, due_date
-    ))
-
-    if DATABASE_URL:
-        member = _fetchone(conn, f"SELECT id FROM members WHERE coop_id = {PH} AND member_number = {PH}",
-            (coop_id, member_number))
-        member_id = member["id"]
+def get_all_coops():
+    """Get all co-ops for superadmin"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('SELECT id, name, slug FROM coops ORDER BY name')
+        rows = cursor.fetchall()
+        results = [{'id': r[0], 'name': r[1], 'slug': r[2]} for r in rows]
     else:
-        member_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+        cursor.execute('SELECT id, name, slug FROM coops ORDER BY name')
+        results = cursor.fetchall()
+    
+    conn.close()
+    return results
 
-    equity = mtype["equity_amount"]
-    if data["payment_plan"] == "full":
-        _execute(conn, f"""
-            INSERT INTO payments (member_id, installment_number, due_date, equity_amount, dues_amount)
-            VALUES ({PH}, 1, {PH}, {PH}, 0)
-        """, (member_id, join_date, equity))
-    elif data["payment_plan"] == "installment":
-        per_installment = equity / mtype["num_installments"]
-        for i in range(mtype["num_installments"]):
-            pmt_date = (date.today() + relativedelta(months=mtype["installment_interval_months"] * i)).isoformat()
-            _execute(conn, f"""
-                INSERT INTO payments (member_id, installment_number, due_date, equity_amount, dues_amount)
-                VALUES ({PH}, {PH}, {PH}, {PH}, 0)
-            """, (member_id, i + 1, pmt_date, per_installment))
+def get_admin_users(coop_id: Optional[int] = None):
+    """Get all admin users, optionally filtered by co-op"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    
+    if coop_id:
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT au.*, c.name as coop_name
+                FROM admin_users au
+                LEFT JOIN coops c ON au.coop_id = c.id
+                WHERE au.coop_id = %s AND au.is_superadmin = FALSE
+                ORDER BY au.username
+            ''', (coop_id,))
+        else:
+            cursor.execute('''
+                SELECT au.*, c.name as coop_name
+                FROM admin_users au
+                LEFT JOIN coops c ON au.coop_id = c.id
+                WHERE au.coop_id = ? AND au.is_superadmin = 0
+                ORDER BY au.username
+            ''', (coop_id,))
     else:
-        _execute(conn, f"""
-            INSERT INTO payments (member_id, installment_number, due_date, equity_amount, dues_amount)
-            VALUES ({PH}, 1, {PH}, {PH}, 0)
-        """, (member_id, join_date, equity))
-
-    return member_number
-
-
-def create_admin_user(conn, username, password, coop_id):
-    _execute(conn, f"""
-        INSERT INTO admin_users (username, password_hash, coop_id, is_superadmin)
-        VALUES ({PH}, {PH}, {PH}, 0)
-    """, (username, hash_password(password), coop_id))
-    conn.commit()
-
-
-def delete_admin_user(conn, user_id):
-    _execute(conn, f"DELETE FROM admin_users WHERE id = {PH} AND is_superadmin = 0", (user_id,))
-    conn.commit()
-
-
-def reset_admin_password(conn, user_id, new_password):
-    _execute(conn, f"UPDATE admin_users SET password_hash = {PH} WHERE id = {PH}",
-        (hash_password(new_password), user_id))
-    conn.commit()
+        if USE_POSTGRES:
+            cursor.execute('''
+                SELECT au.*, c.name as coop_name
+                FROM admin_users au
+                LEFT JOIN coops c ON au.coop_id = c.id
+                WHERE au.is_superadmin = FALSE
+                ORDER BY au.username
+            ''', ())
+        else:
+            cursor.execute('''
+                SELECT au.*, c.name as coop_name
+                FROM admin_users au
+                LEFT JOIN coops c ON au.coop_id = c.id
+                WHERE au.is_superadmin = 0
+                ORDER BY au.username
+            ''', ())
+    
+    if USE_POSTGRES:
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            results.append({
+                'id': row[0],
+                'username': row[1],
+                'email': row[2],
+                'password_hash': row[3],
+                'coop_id': row[4],
+                'is_superadmin': row[5],
+                'password_reset_token': row[6],
+                'password_reset_expires': row[7],
+                'created_at': row[8],
+                'coop_name': row[9] if len(row) > 9 else None
+            })
+    else:
+        results = cursor.fetchall()
+    
+    conn.close()
+    return results

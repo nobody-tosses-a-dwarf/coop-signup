@@ -3,476 +3,525 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin - {{ coop.name }}</title>
+    <title>Admin Dashboard - {{ coop.name }}</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=DM+Serif+Display&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        :root {
-            --bg: #F5F5F2; --card-bg: #FFFFFF; --text: #1A1A1A;
-            --text-secondary: #5C5C5C; --text-muted: #8A8A85;
-            --accent: #2D6A4F; --accent-hover: #1E4D38; --accent-light: #D8F3DC;
-            --warning: #E89B25; --warning-bg: #FFF8EC;
-            --success: #2D6A4F; --success-bg: #D8F3DC;
-            --border: #E5E5E0; --radius: 12px; --radius-sm: 8px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
+        
         body {
-            font-family: 'DM Sans', sans-serif; background: var(--bg);
-            color: var(--text); min-height: 100vh; padding: 2rem 1rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #f5f5f5;
+            line-height: 1.6;
         }
-        .container { max-width: 960px; margin: 0 auto; }
+        
         .header {
-            display: flex; justify-content: space-between; align-items: flex-start;
-            margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem;
+            background: #2c5f2d;
+            color: white;
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .header h1 { font-family: 'DM Serif Display', serif; font-size: 1.5rem; }
-        .header .coop-name { color: var(--text-secondary); font-size: 0.9rem; }
-        .actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-        .btn {
-            display: inline-flex; align-items: center; gap: 0.4rem;
-            padding: 0.6rem 1.1rem; border-radius: var(--radius-sm);
-            font-family: inherit; font-size: 0.85rem; font-weight: 600;
-            text-decoration: none; cursor: pointer; border: 1px solid var(--border);
-            background: var(--card-bg); color: var(--text); transition: all 0.15s;
+        
+        .header h1 {
+            font-size: 24px;
         }
-        .btn:hover { border-color: var(--accent); color: var(--accent); }
-        .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
-        .btn-primary:hover { background: var(--accent-hover); color: #fff; }
-        .btn-logout { border-color: #ccc; color: var(--text-muted); font-weight: 500; }
-        .btn-logout:hover { border-color: #C1292E; color: #C1292E; }
-        .stats {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 1rem; margin-bottom: 2rem;
+        
+        .header-actions {
+            display: flex;
+            gap: 15px;
+            align-items: center;
         }
+        
+        .user-email {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .header-btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .header-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
         .stat-card {
-            background: var(--card-bg); border: 1px solid var(--border);
-            border-radius: var(--radius); padding: 1.25rem;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        .stat-card .stat-value {
-            font-family: 'DM Serif Display', serif; font-size: 1.75rem; color: var(--accent);
+        
+        .stat-label {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 8px;
         }
-        .stat-card .stat-label {
-            font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase;
-            letter-spacing: 0.06em; margin-top: 0.2rem;
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 600;
+            color: #2c5f2d;
         }
-
-        /* Collapsible embed section */
-        .collapsible {
-            background: var(--card-bg); border: 1px solid var(--border);
-            border-radius: var(--radius); margin-bottom: 2rem; overflow: hidden;
-        }
-        .collapsible-header {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 1rem 1.5rem; cursor: pointer; user-select: none;
-            transition: background 0.15s;
-        }
-        .collapsible-header:hover { background: #FAFAF7; }
-        .collapsible-header h2 {
-            font-family: 'DM Serif Display', serif; font-size: 1.1rem; margin: 0;
-        }
-        .collapsible-header .toggle-icon {
-            font-size: 1.2rem; color: var(--text-muted); transition: transform 0.2s;
-        }
-        .collapsible-header.open .toggle-icon { transform: rotate(180deg); }
-        .collapsible-body {
-            display: none; padding: 0 1.5rem 1.5rem; border-top: 1px solid var(--border);
-        }
-        .collapsible-body.open { display: block; }
-
-        .embed-section { margin-top: 1.25rem; }
-        .embed-section-title {
-            font-weight: 600; font-size: 0.8rem; text-transform: uppercase;
-            letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 0.75rem;
-        }
-
-        .option-row {
-            display: flex; align-items: center; gap: 0.75rem;
-            margin-bottom: 0.75rem; flex-wrap: wrap;
-        }
-        .option-row label {
-            font-size: 0.85rem; font-weight: 500; min-width: 140px;
-        }
-        .option-row input[type="number"] {
-            width: 80px; padding: 0.4rem 0.5rem; border: 1px solid var(--border);
-            border-radius: 4px; font-family: inherit; font-size: 0.85rem;
-        }
-        .option-row input[type="color"] {
-            width: 36px; height: 30px; border: 1px solid var(--border);
-            border-radius: 4px; cursor: pointer; padding: 2px;
-        }
-        .option-row input[type="text"] {
-            width: 120px; padding: 0.4rem 0.5rem; border: 1px solid var(--border);
-            border-radius: 4px; font-family: inherit; font-size: 0.85rem;
-        }
-        .option-row select {
-            padding: 0.4rem 0.5rem; border: 1px solid var(--border);
-            border-radius: 4px; font-family: inherit; font-size: 0.85rem;
-        }
-
-        .toggle-switch {
-            position: relative; width: 40px; height: 22px; flex-shrink: 0;
-        }
-        .toggle-switch input { opacity: 0; width: 0; height: 0; }
-        .toggle-slider {
-            position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-            background: #ccc; border-radius: 22px; transition: 0.2s;
-        }
-        .toggle-slider:before {
-            content: ""; position: absolute; height: 16px; width: 16px;
-            left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.2s;
-        }
-        .toggle-switch input:checked + .toggle-slider { background: var(--accent); }
-        .toggle-switch input:checked + .toggle-slider:before { transform: translateX(18px); }
-
-        .code-box {
-            background: #1a1a1a; color: #e0e0e0; border-radius: var(--radius-sm);
-            padding: 1rem; font-family: 'Courier New', monospace; font-size: 0.8rem;
-            line-height: 1.5; overflow-x: auto; position: relative; margin-bottom: 0.75rem;
-            white-space: pre-wrap; word-break: break-all;
-        }
-        .copy-btn {
-            position: absolute; top: 0.5rem; right: 0.5rem;
-            padding: 0.25rem 0.6rem; background: #333; color: #ccc;
-            border: 1px solid #555; border-radius: 4px; cursor: pointer;
-            font-size: 0.7rem; font-family: inherit;
-        }
-        .copy-btn:hover { background: #444; color: #fff; }
-        .copy-btn.copied { background: var(--accent); color: #fff; border-color: var(--accent); }
-
-        .direct-link {
-            display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;
-        }
-        .direct-link input {
-            flex: 1; padding: 0.5rem 0.75rem; border: 1px solid var(--border);
-            border-radius: var(--radius-sm); font-family: monospace; font-size: 0.8rem;
-            background: var(--bg); color: var(--text);
-        }
-
-        .preview-note {
-            font-size: 0.8rem; color: var(--text-muted); font-style: italic;
-            margin-top: 0.5rem;
-        }
-
-        /* Table styles */
-        .table-card {
-            background: var(--card-bg); border: 1px solid var(--border);
-            border-radius: var(--radius); overflow: hidden;
-        }
-        .table-scroll { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        th {
-            text-align: left; padding: 0.75rem 1rem; background: var(--bg);
-            font-weight: 600; font-size: 0.75rem; text-transform: uppercase;
-            letter-spacing: 0.06em; color: var(--text-muted); white-space: nowrap;
-            border-bottom: 1px solid var(--border);
-        }
-        td { padding: 0.7rem 1rem; border-bottom: 1px solid #f0f0ec; white-space: nowrap; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: #FAFAF7; }
-        .badge {
-            display: inline-block; padding: 0.15rem 0.6rem; border-radius: 99px;
-            font-size: 0.75rem; font-weight: 600;
-        }
-        .badge-full { background: var(--success-bg); color: var(--success); }
-        .badge-installment { background: var(--warning-bg); color: var(--warning); }
-        .badge-deferred { background: #F0F0EC; color: var(--text-muted); }
+        
         .payment-bar {
-            width: 80px; height: 6px; background: #E5E5E0; border-radius: 3px;
-            overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 0.4rem;
+            display: flex;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 12px;
         }
-        .payment-bar-fill { height: 100%; background: var(--accent); border-radius: 3px; }
-        .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); }
-        .signup-url {
-            background: var(--bg); border: 1px solid var(--border);
-            border-radius: var(--radius-sm); padding: 0.5rem 0.75rem;
-            font-size: 0.8rem; font-family: monospace; color: var(--text-secondary);
-            margin-top: 0.5rem; display: block;
+        
+        .bar-full { background: #4caf50; flex-grow: 1; }
+        .bar-installments { background: #ff9800; flex-grow: 1; }
+        .bar-later { background: #f44336; flex-grow: 1; }
+        
+        .section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        
+        .section-header h2 {
+            font-size: 20px;
+            color: #333;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            background: #2c5f2d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #1e4220;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th {
+            text-align: left;
+            padding: 12px;
+            background: #f8f9fa;
+            font-weight: 600;
+            border-bottom: 2px solid #dee2e6;
+        }
+        
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .badge {
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .badge-success { background: #d4edda; color: #155724; }
+        .badge-warning { background: #fff3cd; color: #856404; }
+        .badge-danger { background: #f8d7da; color: #721c24; }
+        
+        .collapsible {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            user-select: none;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 500;
+        }
+        
+        .collapsible:hover {
+            background: #e9ecef;
+        }
+        
+        .collapsible::after {
+            content: '▼';
+            font-size: 12px;
+            transition: transform 0.3s;
+        }
+        
+        .collapsible.active::after {
+            transform: rotate(-180deg);
+        }
+        
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .collapsible-content.active {
+            max-height: 2000px;
+            margin-bottom: 20px;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        .form-group textarea {
+            min-height: 200px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .code-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            word-break: break-all;
+            margin-top: 10px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .type-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .type-info {
+            flex: 1;
+        }
+        
+        .type-name {
+            font-weight: 600;
+            color: #2c5f2d;
+            font-size: 16px;
+        }
+        
+        .type-details {
+            color: #666;
+            font-size: 14px;
+            margin-top: 4px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div>
-                <h1>Member Administration</h1>
-                <div class="coop-name">{{ coop.name }}</div>
-                <code class="signup-url" id="signup-url"></code>
-            </div>
-            <div class="actions">
-                {% if is_superadmin %}
-                <a href="/admin/manage" class="btn">Manage Admins</a>
-                {% endif %}
-                <a href="/{{ coop.slug }}" class="btn" target="_blank">View Signup Form</a>
-                <a href="/admin/{{ coop.slug }}/export" class="btn-primary btn">Export for CoPOS</a>
-                <a href="/admin/logout" class="btn btn-logout">Log Out</a>
-            </div>
-        </div>
-
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-value">{{ total_members }}</div>
-                <div class="stat-label">Total Members</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">
-                    {{ members|selectattr('member.payment_plan', 'equalto', 'full')|list|length }}
-                </div>
-                <div class="stat-label">Paid in Full</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">
-                    {{ members|selectattr('member.payment_plan', 'equalto', 'installment')|list|length }}
-                </div>
-                <div class="stat-label">Installment Plans</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value">
-                    {{ members|selectattr('member.payment_plan', 'equalto', 'deferred')|list|length }}
-                </div>
-                <div class="stat-label">Deferred</div>
-            </div>
-        </div>
-
-        <!-- Embed & Share Section -->
-        <div class="collapsible">
-            <div class="collapsible-header" onclick="toggleEmbed()">
-                <h2>Embed &amp; Share</h2>
-                <span class="toggle-icon" id="embed-toggle-icon">&#9660;</span>
-            </div>
-            <div class="collapsible-body" id="embed-body">
-
-                <div class="embed-section">
-                    <div class="embed-section-title">Direct Link</div>
-                    <div class="direct-link">
-                        <input type="text" id="direct-link" readonly>
-                        <button class="btn" onclick="copyText('direct-link')">Copy</button>
-                    </div>
-                    <p class="preview-note">Share this URL directly, on flyers, or social media.</p>
-                </div>
-
-                <div class="embed-section">
-                    <div class="embed-section-title">QR Code</div>
-                    <div style="display: flex; align-items: flex-start; gap: 1.5rem; flex-wrap: wrap;">
-                        <div style="background: white; padding: 0.75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); display: inline-block;">
-                            <img src="/qr/{{ coop.slug }}.png?size=8" alt="QR Code" style="display: block; width: 200px; height: 200px;">
-                        </div>
-                        <div style="flex: 1; min-width: 200px;">
-                            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">This QR code links directly to your signup page at<br><strong>https://{{ base_domain }}/{{ coop.slug }}</strong></p>
-                            <a href="/qr/{{ coop.slug }}/download?size=15" class="btn" style="margin-bottom: 0.5rem;">Download PNG (print quality)</a>
-                            <p class="preview-note">Right-click the image to copy it, or use the download button for a high-resolution version suitable for print materials.</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="embed-section">
-                    <div class="embed-section-title">Embed Options</div>
-
-                    <div class="option-row">
-                        <label>Show header/title</label>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="opt-header" onchange="updateEmbedCode()">
-                            <span class="toggle-slider"></span>
-                        </div>
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">
-                            Shows co-op name and welcome text above the form
-                        </span>
-                    </div>
-
-                    <div class="option-row">
-                        <label>Show "All co-ops" link</label>
-                        <div class="toggle-switch">
-                            <input type="checkbox" id="opt-backlink" onchange="updateEmbedCode()">
-                            <span class="toggle-slider"></span>
-                        </div>
-                        <span style="font-size: 0.8rem; color: var(--text-muted);">
-                            Back link to co-op directory
-                        </span>
-                    </div>
-
-                    <div class="option-row">
-                        <label>Frame height (px)</label>
-                        <input type="number" id="opt-height" value="900" min="400" max="2000" step="50" onchange="updateEmbedCode()">
-                    </div>
-
-                    <div class="option-row">
-                        <label>Background</label>
-                        <select id="opt-bg" onchange="updateEmbedCode()">
-                            <option value="transparent">Transparent (match host page)</option>
-                            <option value="#FAFAF7">Default (light warm)</option>
-                            <option value="#FFFFFF">White</option>
-                            <option value="custom">Custom color</option>
-                        </select>
-                        <input type="color" id="opt-bg-custom" value="#FAFAF7" onchange="updateEmbedCode()" style="display:none;">
-                    </div>
-
-                    <div class="option-row">
-                        <label>Max width</label>
-                        <select id="opt-width" onchange="updateEmbedCode()">
-                            <option value="100%">Full width (100%)</option>
-                            <option value="600px">600px</option>
-                            <option value="700px">700px</option>
-                            <option value="800px">800px</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="embed-section">
-                    <div class="embed-section-title">Embed Code</div>
-                    <div class="code-box" id="embed-code-box">
-                        <button class="copy-btn" onclick="copyEmbed()" id="copy-embed-btn">Copy</button>
-                        <code id="embed-code"></code>
-                    </div>
-                    <p class="preview-note">Paste this into your website's HTML editor, "Custom HTML" block, or embed widget.</p>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Members Table -->
-        <div class="table-card">
-            <div class="table-scroll">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>Name(s)</th>
-                            <th>Type</th>
-                            <th>Plan</th>
-                            <th>Payment Status</th>
-                            <th>Email</th>
-                            <th>Phone</th>
-                            <th>Joined</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for item in members %}
-                        <tr>
-                            <td><strong>{{ item.member.member_number }}</strong></td>
-                            <td>
-                                {{ item.member.name_1 }}{% if item.member.name_2 %}<br>
-                                <span style="color: var(--text-muted);">{{ item.member.name_2 }}</span>{% endif %}
-                            </td>
-                            <td>{{ item.member.type_label }}</td>
-                            <td>
-                                {% if item.member.payment_plan == 'full' %}
-                                <span class="badge badge-full">Full</span>
-                                {% elif item.member.payment_plan == 'installment' %}
-                                <span class="badge badge-installment">Installment</span>
-                                {% else %}
-                                <span class="badge badge-deferred">Deferred</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <div class="payment-bar">
-                                    <div class="payment-bar-fill"
-                                         style="width: {{ (item.paid_equity / item.total_equity * 100) if item.total_equity else 0 }}%">
-                                    </div>
-                                </div>
-                                ${{ "%.0f"|format(item.paid_equity) }} / ${{ "%.0f"|format(item.total_equity) }}
-                            </td>
-                            <td>{{ item.member.email }}</td>
-                            <td>{{ item.member.phone }}</td>
-                            <td>{{ item.member.date_joined }}</td>
-                        </tr>
-                        {% endfor %}
-                        {% if not members %}
-                        <tr>
-                            <td colspan="8" class="empty-state">
-                                No members yet. Share your signup link to get started!
-                            </td>
-                        </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
+    <div class="header">
+        <h1>{{ coop.name }} - Admin Dashboard</h1>
+        <div class="header-actions">
+            <span class="user-email">{{ session.email }}</span>
+            <a href="/change-password" class="header-btn">Change Password</a>
+            <a href="/logout" class="header-btn">Logout</a>
         </div>
     </div>
-
+    
+    <div class="container">
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Members</div>
+                <div class="stat-value">{{ total_members }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Total Equity</div>
+                <div class="stat-value">${{ "%.2f"|format(total_equity) }}</div>
+            </div>
+            
+            <div class="stat-card">
+                <div class="stat-label">Payment Plans</div>
+                <div class="stat-value" style="font-size: 14px; margin-top: 8px;">
+                    <div style="margin-bottom: 4px;">Full: {{ payment_counts.full }}</div>
+                    <div style="margin-bottom: 4px;">Installments: {{ payment_counts.installments }}</div>
+                    <div>Pay Later: {{ payment_counts.later }}</div>
+                </div>
+                <div class="payment-bar">
+                    {% if payment_counts.full > 0 %}<div class="bar-full" style="flex-basis: {{ payment_counts.full }}"></div>{% endif %}
+                    {% if payment_counts.installments > 0 %}<div class="bar-installments" style="flex-basis: {{ payment_counts.installments }}"></div>{% endif %}
+                    {% if payment_counts.later > 0 %}<div class="bar-later" style="flex-basis: {{ payment_counts.later }}"></div>{% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2>Membership Types</h2>
+            </div>
+            
+            {% if membership_types %}
+            <div style="margin-bottom: 20px;">
+                {% for type in membership_types %}
+                <div class="type-card">
+                    <div class="type-info">
+                        <div class="type-name">{{ type.name }}</div>
+                        <div class="type-details">
+                            Equity: ${{ "%.2f"|format(type.equity_amount) }}
+                            {% if type.dues_amount > 0 %}| Dues: ${{ "%.2f"|format(type.dues_amount) }}{% endif %}
+                            {% if type.signup_fee > 0 %}| Fee: ${{ "%.2f"|format(type.signup_fee) }}{% endif %}
+                            {% if type.allows_installments %}| Installments: {{ type.installment_count }} payments{% endif %}
+                        </div>
+                    </div>
+                    <form method="POST" action="/{{ coop.slug }}/admin/membership-types/{{ type.id }}/delete" style="display: inline;" 
+                          onsubmit="return confirm('Delete this membership type? This cannot be undone.');">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p style="color: #666; margin-bottom: 20px;">No membership types configured yet.</p>
+            {% endif %}
+            
+            <div class="collapsible" id="addTypeToggle">Add New Membership Type</div>
+            <div class="collapsible-content" id="addTypeForm">
+                <form method="POST" action="/{{ coop.slug }}/admin/membership-types/create" style="padding: 20px; background: white; border-radius: 5px;">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Membership Name *</label>
+                            <input type="text" name="name" required placeholder="e.g., Household">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Equity Amount ($) *</label>
+                            <input type="number" name="equity_amount" step="0.01" required placeholder="100.00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Annual Dues ($)</label>
+                            <input type="number" name="dues_amount" step="0.01" value="0" placeholder="0.00">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Signup Fee ($)</label>
+                            <input type="number" name="signup_fee" step="0.01" value="0" placeholder="0.00">
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group checkbox-group">
+                            <input type="checkbox" name="allows_installments" id="allows_inst" checked>
+                            <label for="allows_inst">Allow installment payments</label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Number of Installments</label>
+                            <input type="number" name="installment_count" value="4" min="2" max="12">
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn">Create Membership Type</button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2>Member List</h2>
+                <a href="/{{ coop.slug }}/admin/export" class="btn">Export to CoPOS</a>
+            </div>
+            
+            {% if members %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Type</th>
+                        <th>Equity</th>
+                        <th>Payment Plan</th>
+                        <th>Signed Up</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in members %}
+                    <tr>
+                        <td>{{ member.member_number }}</td>
+                        <td>{{ member.first_name }} {{ member.last_name }}</td>
+                        <td>{{ member.email }}</td>
+                        <td>{{ member.membership_type_name }}</td>
+                        <td>${{ "%.2f"|format(member.total_equity) }}</td>
+                        <td>
+                            {% if member.payment_plan == 'full' %}
+                                <span class="badge badge-success">Paid in Full</span>
+                            {% elif member.payment_plan == 'installments' %}
+                                <span class="badge badge-warning">Installments</span>
+                            {% else %}
+                                <span class="badge badge-danger">Pay Later</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ member.signed_up_at[:10] }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #666; text-align: center; padding: 40px 0;">No members yet. Share your signup link to get started!</p>
+            {% endif %}
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2>Embed & Share</h2>
+            </div>
+            
+            <div class="collapsible" id="embedToggle">Generate Embed Code</div>
+            <div class="collapsible-content" id="embedContent">
+                <div style="padding: 20px; background: white; border-radius: 5px;">
+                    <p style="margin-bottom: 15px;">Embed your signup form on your website:</p>
+                    <div class="code-box">{{ embed_code }}</div>
+                    
+                    <p style="margin-top: 20px; margin-bottom: 10px; font-weight: 500;">Customize Embed:</p>
+                    <p style="font-size: 14px; color: #666;">Add query parameters: <code>?embed=1,header=off,bg=off,width=600px</code></p>
+                </div>
+            </div>
+            
+            <div class="collapsible" id="qrToggle">QR Code</div>
+            <div class="collapsible-content" id="qrContent">
+                <div style="padding: 20px; background: white; border-radius: 5px; text-align: center;">
+                    <img src="/{{ coop.slug }}/qr" alt="QR Code" style="max-width: 300px; border: 1px solid #ddd; padding: 10px; border-radius: 5px;">
+                    <p style="margin-top: 15px;">
+                        <a href="/{{ coop.slug }}/qr" download="signup-qr.png" class="btn">Download QR Code</a>
+                    </p>
+                </div>
+            </div>
+            
+            <div class="collapsible" id="linkToggle">Direct Link</div>
+            <div class="collapsible-content" id="linkContent">
+                <div style="padding: 20px; background: white; border-radius: 5px;">
+                    <p style="margin-bottom: 10px;">Share this link:</p>
+                    <div class="code-box">https://{{ base_domain }}/{{ coop.slug }}</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <h2>Membership Agreement</h2>
+            </div>
+            
+            <form method="POST" action="/{{ coop.slug }}/admin/update-agreement">
+                <div class="form-group">
+                    <label>Agreement Text</label>
+                    <textarea name="membership_agreement" placeholder="Enter your membership agreement text here. Members will be required to agree to this before signing up.">{{ coop.membership_agreement or '' }}</textarea>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">This will be displayed on a separate page that members must review before completing signup.</p>
+                </div>
+                <button type="submit" class="btn">Save Membership Agreement</button>
+            </form>
+        </div>
+    </div>
+    
     <script>
-        var base = window.location.protocol + '//' + window.location.host;
-        var slug = '{{ coop.slug }}';
-        document.getElementById('signup-url').textContent = base + '/' + slug;
-        document.getElementById('direct-link').value = base + '/' + slug;
-
-        function toggleEmbed() {
-            var body = document.getElementById('embed-body');
-            var icon = document.getElementById('embed-toggle-icon');
-            var header = icon.parentElement;
-            body.classList.toggle('open');
-            header.classList.toggle('open');
-            if (body.classList.contains('open')) {
-                updateEmbedCode();
-            }
-        }
-
-        function updateEmbedCode() {
-            var showHeader = document.getElementById('opt-header').checked;
-            var showBack = document.getElementById('opt-backlink').checked;
-            var height = document.getElementById('opt-height').value;
-            var bgSelect = document.getElementById('opt-bg');
-            var bgCustom = document.getElementById('opt-bg-custom');
-            var width = document.getElementById('opt-width').value;
-
-            // Show/hide custom color picker
-            bgCustom.style.display = bgSelect.value === 'custom' ? 'inline' : 'none';
-
-            // Build URL params
-            var params = [];
-            if (!showHeader && !showBack) {
-                params.push('embed=1');
-            } else {
-                if (!showHeader) params.push('hideheader=1');
-                if (!showBack) params.push('hideback=1');
-            }
-
-            var bg = bgSelect.value === 'custom' ? bgCustom.value : bgSelect.value;
-            if (bg !== 'transparent') {
-                params.push('bg=' + encodeURIComponent(bg));
-            }
-
-            var url = base + '/' + slug;
-            if (params.length > 0) {
-                url += '?' + params.join('&');
-            }
-
-            // Update direct link too
-            document.getElementById('direct-link').value = url;
-
-            // Build iframe code
-            var style = 'width:' + width + '; height:' + height + 'px; border:none;';
-            if (width !== '100%') {
-                style += ' display:block; margin:0 auto;';
-            }
-
-            var code = '<iframe src="' + url + '" style="' + style + '"></iframe>';
-            document.getElementById('embed-code').textContent = code;
-        }
-
-        function copyText(id) {
-            var input = document.getElementById(id);
-            input.select();
-            navigator.clipboard.writeText(input.value);
-        }
-
-        function copyEmbed() {
-            var code = document.getElementById('embed-code').textContent;
-            navigator.clipboard.writeText(code);
-            var btn = document.getElementById('copy-embed-btn');
-            btn.textContent = 'Copied!';
-            btn.classList.add('copied');
-            setTimeout(function() {
-                btn.textContent = 'Copy';
-                btn.classList.remove('copied');
-            }, 2000);
-        }
-
-        // Show custom color picker when selected
-        document.getElementById('opt-bg').addEventListener('change', function() {
-            document.getElementById('opt-bg-custom').style.display =
-                this.value === 'custom' ? 'inline' : 'none';
+        // Collapsible sections
+        const collapsibles = [
+            {toggle: 'addTypeToggle', content: 'addTypeForm'},
+            {toggle: 'embedToggle', content: 'embedContent'},
+            {toggle: 'qrToggle', content: 'qrContent'},
+            {toggle: 'linkToggle', content: 'linkContent'}
+        ];
+        
+        collapsibles.forEach(item => {
+            const toggle = document.getElementById(item.toggle);
+            const content = document.getElementById(item.content);
+            
+            toggle.addEventListener('click', function() {
+                this.classList.toggle('active');
+                content.classList.toggle('active');
+            });
         });
-
-        // Initialize
-        updateEmbedCode();
     </script>
 </body>
 </html>
