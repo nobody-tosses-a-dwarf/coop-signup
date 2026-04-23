@@ -325,13 +325,43 @@ async def delete_coop(request: Request,
         raise HTTPException(status_code=403, detail="Incorrect password")
     
     try:
-        # Delete the co-op (cascade deletes all related data)
         conn = db.get_connection()
         cursor = conn.cursor()
         
+        # Delete in correct order to avoid foreign key violations
         if db.USE_POSTGRES:
+            # 1. Get all members for this co-op
+            cursor.execute('SELECT id FROM members WHERE coop_id = %s', (coop_id,))
+            member_ids = [row[0] for row in cursor.fetchall()]
+            
+            # 2. Delete payment schedules for those members
+            if member_ids:
+                placeholders = ','.join(['%s'] * len(member_ids))
+                cursor.execute(f'DELETE FROM payment_schedules WHERE member_id IN ({placeholders})', member_ids)
+            
+            # 3. Delete members
+            cursor.execute('DELETE FROM members WHERE coop_id = %s', (coop_id,))
+            
+            # 4. Delete membership types
+            cursor.execute('DELETE FROM membership_types WHERE coop_id = %s', (coop_id,))
+            
+            # 5. Delete admin users for this co-op
+            cursor.execute('DELETE FROM admin_users WHERE coop_id = %s', (coop_id,))
+            
+            # 6. Finally delete the co-op
             cursor.execute('DELETE FROM coops WHERE id = %s', (coop_id,))
         else:
+            # SQLite version
+            cursor.execute('SELECT id FROM members WHERE coop_id = ?', (coop_id,))
+            member_ids = [row[0] for row in cursor.fetchall()]
+            
+            if member_ids:
+                placeholders = ','.join(['?'] * len(member_ids))
+                cursor.execute(f'DELETE FROM payment_schedules WHERE member_id IN ({placeholders})', member_ids)
+            
+            cursor.execute('DELETE FROM members WHERE coop_id = ?', (coop_id,))
+            cursor.execute('DELETE FROM membership_types WHERE coop_id = ?', (coop_id,))
+            cursor.execute('DELETE FROM admin_users WHERE coop_id = ?', (coop_id,))
             cursor.execute('DELETE FROM coops WHERE id = ?', (coop_id,))
         
         conn.commit()
