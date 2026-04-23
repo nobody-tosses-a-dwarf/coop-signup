@@ -876,7 +876,9 @@ def get_admin_users(coop_id: Optional[int] = None):
     if coop_id:
         if USE_POSTGRES:
             cursor.execute('''
-                SELECT au.*, c.name as coop_name
+                SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
+                       au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
+                       au.created_at, c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.coop_id = %s AND au.is_superadmin = 0
@@ -884,7 +886,9 @@ def get_admin_users(coop_id: Optional[int] = None):
             ''', (coop_id,))
         else:
             cursor.execute('''
-                SELECT au.*, c.name as coop_name
+                SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
+                       au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
+                       au.created_at, c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.coop_id = ? AND au.is_superadmin = 0
@@ -893,7 +897,9 @@ def get_admin_users(coop_id: Optional[int] = None):
     else:
         if USE_POSTGRES:
             cursor.execute('''
-                SELECT au.*, c.name as coop_name
+                SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
+                       au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
+                       au.created_at, c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.is_superadmin = 0
@@ -901,7 +907,9 @@ def get_admin_users(coop_id: Optional[int] = None):
             ''', ())
         else:
             cursor.execute('''
-                SELECT au.*, c.name as coop_name
+                SELECT au.id, au.username, au.email, au.password_hash, au.coop_id, 
+                       au.is_superadmin, au.password_reset_token, au.password_reset_expires, 
+                       au.created_at, c.name as coop_name
                 FROM admin_users au
                 LEFT JOIN coops c ON au.coop_id = c.id
                 WHERE au.is_superadmin = 0
