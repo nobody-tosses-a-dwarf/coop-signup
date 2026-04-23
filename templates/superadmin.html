@@ -135,6 +135,63 @@
             color: #155724;
         }
         
+        .btn-danger {
+            background: #dc3545;
+            padding: 6px 12px;
+            font-size: 13px;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 30px;
+            border-radius: 8px;
+            max-width: 500px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .modal-header {
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h3 {
+            color: #dc3545;
+            margin-bottom: 10px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .modal-buttons button {
+            flex: 1;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+        
         .coop-link {
             color: #2c5f2d;
             text-decoration: none;
@@ -185,6 +242,7 @@
                         <th>Slug</th>
                         <th>Admin Panel</th>
                         <th>Signup Link</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -194,6 +252,11 @@
                         <td><code>{{ coop.slug }}</code></td>
                         <td><a href="/{{ coop.slug }}/admin" class="coop-link">View Dashboard</a></td>
                         <td><a href="/{{ coop.slug }}" class="coop-link" target="_blank">Open Signup Page</a></td>
+                        <td>
+                            <button onclick="confirmDelete({{ coop.id }}, '{{ coop.name }}')" class="btn btn-danger">
+                                Delete
+                            </button>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -242,6 +305,7 @@
                         <th>Email</th>
                         <th>Co-op</th>
                         <th>Created</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -250,6 +314,12 @@
                         <td>{{ admin.email }}</td>
                         <td>{{ admin.coop_name }}</td>
                         <td>{{ admin.created_at[:10] if admin.created_at else 'N/A' }}</td>
+                        <td>
+                            <form method="POST" action="/superadmin/delete-admin/{{ admin.id }}" style="display: inline;" 
+                                  onsubmit="return confirm('Delete admin user {{ admin.email }}? This cannot be undone.');">
+                                <button type="submit" class="btn btn-danger">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -259,5 +329,65 @@
             {% endif %}
         </div>
     </div>
+    
+    <!-- Delete Co-op Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>⚠️ Delete Co-op</h3>
+                <p id="deleteWarning" style="color: #721c24; background: #f8d7da; padding: 12px; border-radius: 4px; margin-top: 10px;">
+                    This will permanently delete <strong id="coopName"></strong> and all associated data:
+                </p>
+                <ul style="margin-top: 10px; color: #666;">
+                    <li>All membership types</li>
+                    <li>All members and payment records</li>
+                    <li>All admin users for this co-op</li>
+                </ul>
+                <p style="margin-top: 15px; font-weight: 600;">This action cannot be undone!</p>
+            </div>
+            
+            <form id="deleteForm" method="POST">
+                <div class="form-group">
+                    <label>Enter your superadmin password to confirm:</label>
+                    <input type="password" name="password" id="deletePassword" required autofocus 
+                           style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" onclick="closeModal()" class="btn btn-secondary">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Delete Co-op</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <script>
+        function confirmDelete(coopId, coopName) {
+            document.getElementById('coopName').textContent = coopName;
+            document.getElementById('deleteForm').action = '/superadmin/delete-coop/' + coopId;
+            document.getElementById('deletePassword').value = '';
+            document.getElementById('deleteModal').style.display = 'block';
+            setTimeout(() => document.getElementById('deletePassword').focus(), 100);
+        }
+        
+        function closeModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeModal();
+            }
+        });
+    </script>
 </body>
 </html>

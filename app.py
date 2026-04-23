@@ -313,6 +313,55 @@ async def create_admin(request: Request,
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error creating admin: {str(e)}")
 
+@app.post("/superadmin/delete-coop/{coop_id}")
+async def delete_coop(request: Request,
+                     coop_id: int,
+                     password: str = Form(...),
+                     session_data: dict = Depends(require_superadmin)):
+    """Delete a co-op (requires password confirmation)"""
+    # Verify superadmin password
+    verified = db.verify_admin(session_data['username'], password)
+    if not verified:
+        raise HTTPException(status_code=403, detail="Incorrect password")
+    
+    try:
+        # Delete the co-op (cascade deletes all related data)
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        if db.USE_POSTGRES:
+            cursor.execute('DELETE FROM coops WHERE id = %s', (coop_id,))
+        else:
+            cursor.execute('DELETE FROM coops WHERE id = ?', (coop_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return RedirectResponse("/superadmin", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error deleting co-op: {str(e)}")
+
+@app.post("/superadmin/delete-admin/{admin_id}")
+async def delete_admin(request: Request,
+                       admin_id: int,
+                       session_data: dict = Depends(require_superadmin)):
+    """Delete an admin user"""
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        if db.USE_POSTGRES:
+            cursor.execute('DELETE FROM admin_users WHERE id = %s AND is_superadmin = 0', (admin_id,))
+        else:
+            cursor.execute('DELETE FROM admin_users WHERE id = ? AND is_superadmin = 0', (admin_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return RedirectResponse("/superadmin", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error deleting admin: {str(e)}")
+
 @app.get("/{slug}", response_class=HTMLResponse)
 async def signup_page(request: Request, slug: str, embed: Optional[str] = None):
     """Member signup page"""
@@ -449,7 +498,14 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
     
     # Calculate stats
     total_members = len(members)
-    total_equity = sum(float(m['total_equity']) if m['total_equity'] else 0 for m in members)
+    # Safely calculate total equity, skipping invalid values from old schema
+    total_equity = 0
+    for m in members:
+        try:
+            total_equity += float(m['total_equity']) if m['total_equity'] else 0
+        except (ValueError, TypeError):
+            # Skip invalid data from old schema
+            pass
     payment_counts = {
         'full': sum(1 for m in members if m['payment_plan'] == 'full'),
         'installments': sum(1 for m in members if m['payment_plan'] == 'installments'),
