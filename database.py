@@ -24,6 +24,130 @@ def dict_factory(cursor, row):
         d[col[0]] = row[idx]
     return d
 
+def migrate_db():
+    """Migrate existing database to add new columns"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    try:
+        # Add email column to admin_users if it doesn't exist
+        if USE_POSTGRES:
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='admin_users' AND column_name='email'
+                    ) THEN
+                        ALTER TABLE admin_users ADD COLUMN email TEXT;
+                        UPDATE admin_users SET email = username || '@temp.com' WHERE email IS NULL;
+                        ALTER TABLE admin_users ALTER COLUMN email SET NOT NULL;
+                        CREATE UNIQUE INDEX IF NOT EXISTS admin_users_email_key ON admin_users(email);
+                    END IF;
+                END $$;
+            """)
+            
+            # Add password reset columns
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='admin_users' AND column_name='password_reset_token'
+                    ) THEN
+                        ALTER TABLE admin_users ADD COLUMN password_reset_token TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='admin_users' AND column_name='password_reset_expires'
+                    ) THEN
+                        ALTER TABLE admin_users ADD COLUMN password_reset_expires TIMESTAMP;
+                    END IF;
+                END $$;
+            """)
+            
+            # Add coop_id to membership_types if it doesn't exist
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='membership_types' AND column_name='coop_id'
+                    ) THEN
+                        ALTER TABLE membership_types ADD COLUMN coop_id INTEGER REFERENCES coops(id) ON DELETE CASCADE;
+                        -- Link existing types to first coop if any exist
+                        UPDATE membership_types SET coop_id = (SELECT id FROM coops LIMIT 1) WHERE coop_id IS NULL;
+                        ALTER TABLE membership_types ALTER COLUMN coop_id SET NOT NULL;
+                    END IF;
+                END $$;
+            """)
+            
+            # Add membership_agreement to coops if it doesn't exist
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='coops' AND column_name='membership_agreement'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN membership_agreement TEXT;
+                    END IF;
+                END $$;
+            """)
+            
+            # Add agreed_to_terms to members if it doesn't exist
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='members' AND column_name='agreed_to_terms'
+                    ) THEN
+                        ALTER TABLE members ADD COLUMN agreed_to_terms BOOLEAN DEFAULT FALSE;
+                    END IF;
+                END $$;
+            """)
+        else:
+            # SQLite migrations (simpler, just try to add columns)
+            try:
+                cursor.execute('ALTER TABLE admin_users ADD COLUMN email TEXT')
+                cursor.execute("UPDATE admin_users SET email = username || '@temp.com'")
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE admin_users ADD COLUMN password_reset_token TEXT')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE admin_users ADD COLUMN password_reset_expires TIMESTAMP')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE membership_types ADD COLUMN coop_id INTEGER REFERENCES coops(id)')
+                cursor.execute('UPDATE membership_types SET coop_id = (SELECT id FROM coops LIMIT 1)')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN membership_agreement TEXT')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE members ADD COLUMN agreed_to_terms INTEGER DEFAULT 0')
+            except:
+                pass
+        
+        conn.commit()
+    except Exception as e:
+        print(f"Migration warning: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
 def init_db():
     """Initialize database schema"""
     conn = get_connection()

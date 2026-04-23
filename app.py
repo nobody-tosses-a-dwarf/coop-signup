@@ -22,6 +22,7 @@ serializer = URLSafeTimedSerializer(SECRET_KEY)
 
 # Initialize database
 db.init_db()
+db.migrate_db()
 
 # Create superadmin if ADMIN_PASSWORD is set
 admin_password = os.getenv('ADMIN_PASSWORD')
