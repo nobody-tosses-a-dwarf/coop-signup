@@ -133,6 +133,19 @@ def migrate_db():
                     END IF;
                 END $$;
             """)
+            
+            # Add newsletter to members if it doesn't exist
+            cursor.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name='members' AND column_name='newsletter'
+                    ) THEN
+                        ALTER TABLE members ADD COLUMN newsletter BOOLEAN DEFAULT TRUE;
+                    END IF;
+                END $$;
+            """)
         else:
             # SQLite migrations (simpler, just try to add columns)
             try:
@@ -174,6 +187,11 @@ def migrate_db():
             
             try:
                 cursor.execute('ALTER TABLE members ADD COLUMN agreed_to_terms INTEGER DEFAULT 0')
+            except:
+                pass
+            
+            try:
+                cursor.execute('ALTER TABLE members ADD COLUMN newsletter INTEGER DEFAULT 1')
             except:
                 pass
         
@@ -321,6 +339,7 @@ def init_db():
             total_dues DECIMAL(10,2) DEFAULT 0,
             signup_fee DECIMAL(10,2) DEFAULT 0,
             agreed_to_terms BOOLEAN DEFAULT FALSE,
+            newsletter BOOLEAN DEFAULT TRUE,
             signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(coop_id, member_number)
         )
@@ -343,6 +362,7 @@ def init_db():
             total_dues REAL DEFAULT 0,
             signup_fee REAL DEFAULT 0,
             agreed_to_terms INTEGER DEFAULT 0,
+            newsletter INTEGER DEFAULT 1,
             signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(coop_id, member_number)
         )
@@ -793,7 +813,7 @@ def delete_membership_type(type_id: int, coop_id: int):
 def create_member(coop_id: int, membership_type_id: int, first_name: str, 
                  last_name: str, email: str, phone: str, address: str,
                  city: str, state: str, zip_code: str, payment_plan: str,
-                 agreed_to_terms: bool = True):
+                 agreed_to_terms: bool = True, newsletter: bool = True):
     """Create a new member and return member info"""
     conn = get_connection()
     cursor = conn.cursor()
@@ -839,23 +859,25 @@ def create_member(coop_id: int, membership_type_id: int, first_name: str,
             INSERT INTO members 
             (coop_id, membership_type_id, member_number, first_name, last_name, 
              email, phone, address, city, state, zip, payment_plan,
-             total_equity, total_dues, signup_fee, agreed_to_terms)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             total_equity, total_dues, signup_fee, agreed_to_terms, newsletter)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         ''', (coop_id, membership_type_id, member_number, first_name, last_name,
               email, phone, address, city, state, zip_code, payment_plan,
-              equity_amount, dues_amount, signup_fee, agreed_to_terms))
+              equity_amount, dues_amount, signup_fee, agreed_to_terms, newsletter))
         member_id = cursor.fetchone()[0]
     else:
         cursor.execute('''
             INSERT INTO members 
             (coop_id, membership_type_id, member_number, first_name, last_name, 
              email, phone, address, city, state, zip, payment_plan,
-             total_equity, total_dues, signup_fee, agreed_to_terms)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             total_equity, total_dues, signup_fee, agreed_to_terms, newsletter)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (coop_id, membership_type_id, member_number, first_name, last_name,
               email, phone, address, city, state, zip_code, payment_plan,
-              equity_amount, dues_amount, signup_fee, 1 if agreed_to_terms else 0))
+              equity_amount, dues_amount, signup_fee,
+              1 if agreed_to_terms else 0,
+              1 if newsletter else 0))
         member_id = cursor.lastrowid
     
     # Create payment schedule if installments
@@ -897,7 +919,12 @@ def get_all_members(coop_id: int):
     
     if USE_POSTGRES:
         cursor.execute('''
-            SELECT m.*, mt.name as membership_type_name
+            SELECT m.id, m.coop_id, m.membership_type_id, m.member_number,
+                   m.first_name, m.last_name, m.email, m.phone, m.address,
+                   m.city, m.state, m.zip, m.payment_plan,
+                   m.total_equity, m.total_dues, m.signup_fee,
+                   m.agreed_to_terms, m.newsletter, m.signed_up_at,
+                   mt.name as membership_type_name
             FROM members m
             JOIN membership_types mt ON m.membership_type_id = mt.id
             WHERE m.coop_id = %s
@@ -924,12 +951,18 @@ def get_all_members(coop_id: int):
                 'total_dues': row[14],
                 'signup_fee': row[15],
                 'agreed_to_terms': row[16],
-                'signed_up_at': row[17],
-                'membership_type_name': row[18]
+                'newsletter': row[17],
+                'signed_up_at': row[18],
+                'membership_type_name': row[19]
             })
     else:
         cursor.execute('''
-            SELECT m.*, mt.name as membership_type_name
+            SELECT m.id, m.coop_id, m.membership_type_id, m.member_number,
+                   m.first_name, m.last_name, m.email, m.phone, m.address,
+                   m.city, m.state, m.zip, m.payment_plan,
+                   m.total_equity, m.total_dues, m.signup_fee,
+                   m.agreed_to_terms, m.newsletter, m.signed_up_at,
+                   mt.name as membership_type_name
             FROM members m
             JOIN membership_types mt ON m.membership_type_id = mt.id
             WHERE m.coop_id = ?
@@ -939,6 +972,49 @@ def get_all_members(coop_id: int):
     
     conn.close()
     return results
+
+def delete_member(member_id: int, coop_id: int) -> bool:
+    """Delete a single member (scoped to the given co-op for safety).
+    
+    Payment schedules cascade-delete via foreign key. Returns True if
+    a row was deleted, False if no matching member existed.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('DELETE FROM members WHERE id = %s AND coop_id = %s',
+                      (member_id, coop_id))
+    else:
+        cursor.execute('DELETE FROM members WHERE id = ? AND coop_id = ?',
+                      (member_id, coop_id))
+    
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+def delete_coop_cascade(coop_id: int) -> bool:
+    """Delete a co-op and let foreign-key CASCADE remove all related rows.
+    
+    Relies on ON DELETE CASCADE declared on membership_types.coop_id,
+    members.coop_id, admin_users.coop_id, and payment_schedules.member_id.
+    Returns True if a co-op was deleted.
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    if USE_POSTGRES:
+        cursor.execute('DELETE FROM coops WHERE id = %s', (coop_id,))
+    else:
+        # SQLite needs foreign_keys=ON pragma for CASCADE to work
+        cursor.execute('PRAGMA foreign_keys = ON')
+        cursor.execute('DELETE FROM coops WHERE id = ?', (coop_id,))
+    
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
 
 def get_all_coops():
     """Get all co-ops for superadmin"""

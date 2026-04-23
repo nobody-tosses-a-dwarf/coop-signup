@@ -409,7 +409,9 @@
                         <th>Type</th>
                         <th>Equity</th>
                         <th>Payment Plan</th>
+                        <th>Newsletter</th>
                         <th>Signed Up</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -429,7 +431,14 @@
                                 <span class="badge badge-danger">Pay Later</span>
                             {% endif %}
                         </td>
+                        <td>{% if member.newsletter %}Yes{% else %}No{% endif %}</td>
                         <td>{{ member.signed_up_at.strftime('%Y-%m-%d') if member.signed_up_at.strftime is defined else (member.signed_up_at|string)[:10] }}</td>
+                        <td>
+                            <form method="POST" action="/{{ coop.slug }}/admin/members/{{ member.id }}/delete" style="display:inline;"
+                                  onsubmit="return confirm('Delete member #{{ member.member_number }} - {{ member.first_name }} {{ member.last_name }}? This cannot be undone.');">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

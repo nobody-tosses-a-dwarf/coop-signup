@@ -154,6 +154,14 @@
             margin-bottom: 20px;
         }
         
+        .newsletter-section {
+            background: #f0f7f0;
+            border: 1px solid #c8e6c9;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
         .agreement-checkbox {
             display: flex;
             align-items: flex-start;
@@ -312,6 +320,15 @@
                             Pay Later
                         </label>
                     </div>
+                </div>
+            </div>
+            
+            <div class="newsletter-section">
+                <div class="agreement-checkbox">
+                    <input type="checkbox" id="newsletter" name="newsletter" value="1" checked>
+                    <label for="newsletter">
+                        Yes, add me to {{ coop.name }}'s mailing list so I can receive updates and news from the co-op.
+                    </label>
                 </div>
             </div>
             

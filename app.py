@@ -325,67 +325,21 @@ async def delete_coop(request: Request,
                      coop_id: int,
                      password: str = Form(...),
                      session_data: dict = Depends(require_superadmin)):
-    """Delete a co-op (requires password confirmation)"""
+    """Delete a co-op and all related records (requires password confirmation)."""
     # Verify superadmin password
     verified = db.verify_admin(session_data['username'], password)
     if not verified:
         raise HTTPException(status_code=403, detail="Incorrect password")
     
     try:
-        conn = db.get_connection()
-        cursor = conn.cursor()
-        
-        # Delete in correct order to avoid foreign key violations
-        if db.USE_POSTGRES:
-            # 1. Get all members for this co-op
-            cursor.execute('SELECT id FROM members WHERE coop_id = %s', (coop_id,))
-            member_ids = [row[0] for row in cursor.fetchall()]
-            
-            # 2. Delete payment schedules AND old payments table for those members
-            if member_ids:
-                placeholders = ','.join(['%s'] * len(member_ids))
-                cursor.execute(f'DELETE FROM payment_schedules WHERE member_id IN ({placeholders})', member_ids)
-                # Also delete from old 'payments' table if it exists
-                try:
-                    cursor.execute(f'DELETE FROM payments WHERE member_id IN ({placeholders})', member_ids)
-                except:
-                    pass  # Table might not exist in new schema
-            
-            # 3. Delete members
-            cursor.execute('DELETE FROM members WHERE coop_id = %s', (coop_id,))
-            
-            # 4. Delete membership types
-            cursor.execute('DELETE FROM membership_types WHERE coop_id = %s', (coop_id,))
-            
-            # 5. Delete admin users for this co-op
-            cursor.execute('DELETE FROM admin_users WHERE coop_id = %s', (coop_id,))
-            
-            # 6. Finally delete the co-op
-            cursor.execute('DELETE FROM coops WHERE id = %s', (coop_id,))
-        else:
-            # SQLite version
-            cursor.execute('SELECT id FROM members WHERE coop_id = ?', (coop_id,))
-            member_ids = [row[0] for row in cursor.fetchall()]
-            
-            if member_ids:
-                placeholders = ','.join(['?'] * len(member_ids))
-                cursor.execute(f'DELETE FROM payment_schedules WHERE member_id IN ({placeholders})', member_ids)
-                try:
-                    cursor.execute(f'DELETE FROM payments WHERE member_id IN ({placeholders})', member_ids)
-                except:
-                    pass
-            
-            cursor.execute('DELETE FROM members WHERE coop_id = ?', (coop_id,))
-            cursor.execute('DELETE FROM membership_types WHERE coop_id = ?', (coop_id,))
-            cursor.execute('DELETE FROM admin_users WHERE coop_id = ?', (coop_id,))
-            cursor.execute('DELETE FROM coops WHERE id = ?', (coop_id,))
-        
-        conn.commit()
-        conn.close()
-        
+        deleted = db.delete_coop_cascade(coop_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Co-op not found")
         return RedirectResponse("/superadmin", status_code=302)
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error deleting co-op: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error deleting co-op: {str(e)}")
 
 @app.post("/superadmin/delete-admin/{admin_id}")
 async def delete_admin(request: Request,
@@ -472,7 +426,8 @@ async def submit_signup(request: Request, slug: str,
                        state: str = Form(...),
                        zip: str = Form(...),
                        payment_plan: str = Form(...),
-                       agreed_to_terms: Optional[str] = Form(None)):
+                       agreed_to_terms: Optional[str] = Form(None),
+                       newsletter: Optional[str] = Form(None)):
     """Process member signup"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -498,12 +453,15 @@ async def submit_signup(request: Request, slug: str,
     if payment_plan not in ['full', 'installments', 'later']:
         raise HTTPException(status_code=400, detail="Invalid payment plan")
     
+    # Checkbox fields: present in form data when checked, absent when not.
+    newsletter_opt_in = newsletter is not None
+    
     # Create member
     try:
         result = db.create_member(
             coop['id'], membership_type_id, first_name, last_name,
             email, phone, address, city, state, zip, payment_plan,
-            True
+            True, newsletter_opt_in
         )
         
         # Get membership type info
@@ -621,6 +579,28 @@ async def delete_membership_type(request: Request, slug: str, type_id: int,
         return RedirectResponse(f"/{slug}/admin", status_code=302)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting membership type: {str(e)}")
+
+@app.post("/{slug}/admin/members/{member_id}/delete")
+async def delete_member_route(request: Request, slug: str, member_id: int,
+                              session_data: dict = Depends(require_auth)):
+    """Delete a member (admins of this co-op, or superadmin)."""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+    
+    try:
+        deleted = db.delete_member(member_id, coop['id'])
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Member not found")
+        return RedirectResponse(f"/{slug}/admin", status_code=302)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error deleting member: {str(e)}")
 
 @app.post("/{slug}/admin/update-agreement")
 async def update_agreement(request: Request, slug: str,
