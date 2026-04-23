@@ -449,7 +449,7 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
     
     # Calculate stats
     total_members = len(members)
-    total_equity = sum(m['total_equity'] for m in members)
+    total_equity = sum(float(m['total_equity']) if m['total_equity'] else 0 for m in members)
     payment_counts = {
         'full': sum(1 for m in members if m['payment_plan'] == 'full'),
         'installments': sum(1 for m in members if m['payment_plan'] == 'installments'),
