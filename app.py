@@ -561,6 +561,33 @@ async def create_membership_type(request: Request, slug: str,
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error creating membership type: {str(e)}")
 
+@app.post("/{slug}/admin/membership-types/{type_id}/edit")
+async def edit_membership_type(request: Request, slug: str, type_id: int,
+                               name: str = Form(...),
+                               equity_amount: float = Form(...),
+                               dues_amount: float = Form(0),
+                               signup_fee: float = Form(0),
+                               allows_installments: Optional[str] = Form(None),
+                               installment_count: int = Form(4),
+                               session_data: dict = Depends(require_auth)):
+    """Update a membership type"""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    try:
+        db.update_membership_type(
+            type_id, coop['id'], name, equity_amount, dues_amount, signup_fee,
+            allows_installments is not None, installment_count
+        )
+        return RedirectResponse(f"/{slug}/admin", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error updating membership type: {str(e)}")
+
 @app.post("/{slug}/admin/membership-types/{type_id}/delete")
 async def delete_membership_type(request: Request, slug: str, type_id: int,
                                 session_data: dict = Depends(require_auth)):

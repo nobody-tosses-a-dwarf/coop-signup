@@ -143,6 +143,7 @@
         }
         .form-group textarea { min-height: 200px; resize: vertical; font-family: inherit; }
         .checkbox-group { display: flex; align-items: center; gap: 8px; }
+        .checkbox-group label { display: inline; margin-bottom: 0; font-weight: normal; }
 
         .type-card {
             background: #f8f9fa;
@@ -344,9 +345,48 @@
                             {% if type.allows_installments %}| Installments: {{ type.installment_count }} payments{% endif %}
                         </div>
                     </div>
-                    <form method="POST" action="/{{ coop.slug }}/admin/membership-types/{{ type.id }}/delete" style="display: inline;"
-                          onsubmit="return confirm('Delete this membership type? This cannot be undone.');">
-                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="button" class="btn btn-sm" onclick="toggleEditForm('edit-{{ type.id }}')">Edit</button>
+                        <form method="POST" action="/{{ coop.slug }}/admin/membership-types/{{ type.id }}/delete" style="display: inline;"
+                              onsubmit="return confirm('Delete this membership type? This cannot be undone.');">
+                            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                        </form>
+                    </div>
+                </div>
+                <div id="edit-{{ type.id }}" style="display: none; padding: 20px; background: #f0f7f0; border-radius: 5px; margin-bottom: 10px; border: 1px solid #c3e6cb;">
+                    <form method="POST" action="/{{ coop.slug }}/admin/membership-types/{{ type.id }}/edit">
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Membership Name *</label>
+                                <input type="text" name="name" required value="{{ type.name }}">
+                            </div>
+                            <div class="form-group">
+                                <label>Equity Amount ($) *</label>
+                                <input type="number" name="equity_amount" step="0.01" required value="{{ type.equity_amount }}">
+                            </div>
+                            <div class="form-group">
+                                <label>Annual Dues ($)</label>
+                                <input type="number" name="dues_amount" step="0.01" value="{{ type.dues_amount or 0 }}">
+                            </div>
+                            <div class="form-group">
+                                <label>Signup Fee ($)</label>
+                                <input type="number" name="signup_fee" step="0.01" value="{{ type.signup_fee or 0 }}">
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 15px;">
+                            <div class="checkbox-group">
+                                <input type="checkbox" name="allows_installments" id="edit-inst-{{ type.id }}" {% if type.allows_installments %}checked{% endif %}>
+                                <label for="edit-inst-{{ type.id }}">Allow installment payments</label>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label>Number of Installments</label>
+                                <input type="number" name="installment_count" value="{{ type.installment_count }}" min="2" max="12" style="width: 80px;">
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button type="submit" class="btn">Save Changes</button>
+                            <button type="button" class="btn" style="background: #6c757d;" onclick="toggleEditForm('edit-{{ type.id }}')">Cancel</button>
+                        </div>
                     </form>
                 </div>
                 {% endfor %}
@@ -377,14 +417,14 @@
                         </div>
                     </div>
 
-                    <div class="form-grid">
-                        <div class="form-group checkbox-group">
+                    <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 15px;">
+                        <div class="checkbox-group">
                             <input type="checkbox" name="allows_installments" id="allows_inst" checked>
                             <label for="allows_inst">Allow installment payments</label>
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="margin-bottom: 0;">
                             <label>Number of Installments</label>
-                            <input type="number" name="installment_count" value="4" min="2" max="12">
+                            <input type="number" name="installment_count" value="4" min="2" max="12" style="width: 80px;">
                         </div>
                     </div>
 
@@ -671,6 +711,11 @@
                 btn.textContent = original;
                 btn.classList.remove('copied');
             }, 1500);
+        }
+
+        function toggleEditForm(id) {
+            var el = document.getElementById(id);
+            el.style.display = el.style.display === 'none' ? 'block' : 'none';
         }
 
         // Initialize embed code on load

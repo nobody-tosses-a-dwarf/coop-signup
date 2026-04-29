@@ -795,6 +795,33 @@ def get_membership_types(coop_id: int):
     conn.close()
     return results
 
+def update_membership_type(type_id: int, coop_id: int, name: str, equity_amount: float,
+                           dues_amount: float = 0, signup_fee: float = 0,
+                           allows_installments: bool = True, installment_count: int = 4):
+    """Update a membership type (scoped to the given co-op for safety)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE membership_types
+            SET name = %s, equity_amount = %s, dues_amount = %s, signup_fee = %s,
+                allows_installments = %s, installment_count = %s
+            WHERE id = %s AND coop_id = %s
+        ''', (name, equity_amount, dues_amount, signup_fee,
+              allows_installments, installment_count, type_id, coop_id))
+    else:
+        cursor.execute('''
+            UPDATE membership_types
+            SET name = ?, equity_amount = ?, dues_amount = ?, signup_fee = ?,
+                allows_installments = ?, installment_count = ?
+            WHERE id = ? AND coop_id = ?
+        ''', (name, equity_amount, dues_amount, signup_fee,
+              1 if allows_installments else 0, installment_count, type_id, coop_id))
+
+    conn.commit()
+    conn.close()
+
 def delete_membership_type(type_id: int, coop_id: int):
     """Delete a membership type (with co-op ownership verification)"""
     conn = get_connection()
