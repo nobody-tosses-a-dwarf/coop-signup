@@ -319,10 +319,11 @@
                     <div style="margin-bottom: 4px;">Installments: {{ payment_counts.installments }}</div>
                     <div>Pay Later: {{ payment_counts.later }}</div>
                 </div>
+                {% set bar_total = payment_counts.full + payment_counts.installments + payment_counts.later %}
                 <div class="payment-bar">
-                    {% if payment_counts.full > 0 %}<div class="bar-full" style="flex-basis: {{ payment_counts.full }}"></div>{% endif %}
-                    {% if payment_counts.installments > 0 %}<div class="bar-installments" style="flex-basis: {{ payment_counts.installments }}"></div>{% endif %}
-                    {% if payment_counts.later > 0 %}<div class="bar-later" style="flex-basis: {{ payment_counts.later }}"></div>{% endif %}
+                    {% if payment_counts.full > 0 %}<div class="bar-full" style="flex-basis: {{ (payment_counts.full / bar_total * 100)|round(1) }}%"></div>{% endif %}
+                    {% if payment_counts.installments > 0 %}<div class="bar-installments" style="flex-basis: {{ (payment_counts.installments / bar_total * 100)|round(1) }}%"></div>{% endif %}
+                    {% if payment_counts.later > 0 %}<div class="bar-later" style="flex-basis: {{ (payment_counts.later / bar_total * 100)|round(1) }}%"></div>{% endif %}
                 </div>
             </div>
         </div>
@@ -330,8 +331,10 @@
         <div class="section">
             <div class="section-header">
                 <h2>Member List</h2>
-                <a href="/{{ coop.slug }}/admin/export?fmt=txt" class="btn">Export CoPOS (.txt)</a>
-                <a href="/{{ coop.slug }}/admin/export?fmt=xlsx" class="btn" style="margin-left:8px;">Export Excel (.xlsx)</a>
+                <div style="display:flex; gap:8px;">
+                    <a href="/{{ coop.slug }}/admin/export?fmt=txt" class="btn">Export CoPOS (.txt)</a>
+                    <a href="/{{ coop.slug }}/admin/export?fmt=xlsx" class="btn">Export Excel (.xlsx)</a>
+                </div>
             </div>
 
             {% if members %}
