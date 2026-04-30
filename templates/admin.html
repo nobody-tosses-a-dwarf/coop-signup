@@ -354,7 +354,7 @@
                 </thead>
                 <tbody>
                     {% for member in members %}
-                    <tr>
+                    <tr{% if loop.index > 10 %} class="member-overflow" style="display:none;"{% endif %}>
                         <td>{{ member.member_number }}</td>
                         <td>{{ member.first_name }} {{ member.last_name }}</td>
                         <td>{{ member.email }}</td>
@@ -395,6 +395,14 @@
                     {% endfor %}
                 </tbody>
             </table>
+            {% if members | length > 10 %}
+            <div style="text-align:center; margin-top:16px;">
+                <button id="showAllMembers" class="btn" style="background:#6c757d;"
+                        onclick="toggleAllMembers()">
+                    Show all {{ members | length }} members
+                </button>
+            </div>
+            {% endif %}
             {% else %}
             <p style="color: #666; text-align: center; padding: 40px 0;">No members yet. Share your signup link to get started!</p>
             {% endif %}
@@ -956,6 +964,15 @@
 
         // Initialize embed code on load
         updateEmbed();
+
+        var membersExpanded = false;
+        function toggleAllMembers() {
+            membersExpanded = !membersExpanded;
+            var rows = document.querySelectorAll('.member-overflow');
+            var btn = document.getElementById('showAllMembers');
+            rows.forEach(function(r) { r.style.display = membersExpanded ? '' : 'none'; });
+            btn.textContent = membersExpanded ? 'Show recent 10 only' : 'Show all {{ total_members }} members';
+        }
     </script>
 </body>
 </html>

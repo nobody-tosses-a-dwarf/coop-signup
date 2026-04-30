@@ -1236,7 +1236,7 @@ def get_all_members(coop_id: int):
             FROM members m
             JOIN membership_types mt ON m.membership_type_id = mt.id
             WHERE m.coop_id = %s
-            ORDER BY m.member_number
+            ORDER BY m.member_number DESC
         ''', (coop_id,))
         rows = cursor.fetchall()
         results = []
@@ -1277,7 +1277,7 @@ def get_all_members(coop_id: int):
             FROM members m
             JOIN membership_types mt ON m.membership_type_id = mt.id
             WHERE m.coop_id = ?
-            ORDER BY m.member_number
+            ORDER BY m.member_number DESC
         ''', (coop_id,))
         results = cursor.fetchall()
     
