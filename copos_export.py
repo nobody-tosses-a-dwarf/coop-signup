@@ -20,6 +20,7 @@ against that contract as they come in.
 
 from datetime import datetime
 from typing import List, Dict
+from io import BytesIO
 
 
 def _clean(value) -> str:
@@ -128,3 +129,58 @@ def generate_copos_export(members: List[Dict], coop: Dict) -> str:
         lines.append('\t'.join(row))
 
     return '\n'.join(lines)
+
+
+COPOS_HEADERS = [
+    'Member #', 'Member Name #1', 'Member Name #2', 'Street Address', 'City',
+    'State', 'Zip Code', 'Phone', 'E-Mail',
+    'Eligible for Senior Disc?', 'Tax Exempt', 'Newsletter', 'Active',
+    'Voting Privileges', 'Credit Limit', 'Special Order Disc', 'Basic Member Disc',
+    'Senior Discount', 'Working Member Discount', 'Working Member Discount Expires On',
+    'Employee Discount', 'Total Discount',
+    'Membership Type', 'Date Joined', 'Member Due Date', 'Paid in Installments',
+    'Initial Payment Date', 'One Time Sign Up Fee Paid', 'Installment Fee Paid',
+    'Equity Contract', 'Dues Contract',
+    '1st Payment Date', 'Equity Pd In (1st)', 'Dues Pd In (1st)', 'Total 1st',
+    '2nd Payment Date', 'Equity Pd In (2nd)', 'Dues Pd In (2nd)', 'Total 2nd',
+    '3rd Payment Date', 'Equity Pd In (3rd)', 'Dues Pd In (3rd)', 'Total 3rd',
+    '4th Payment Date', 'Equity Pd In (4th)', 'Dues Pd In (4th)', 'Total 4th',
+    '5th Payment Date', 'Equity Pd In (5th)', 'Dues Pd In (5th)', 'Total 5th',
+    '6th Payment Date', 'Equity Pd In (6th)', 'Dues Pd In (6th)', 'Total 6th',
+    'Total Equity Paid', 'Total Dues Paid', 'Total Paid',
+    'CoPOS Internal 1', 'CoPOS Internal 2',
+]
+
+
+def generate_copos_export_xlsx(members: List[Dict], coop: Dict) -> bytes:
+    """Build an Excel workbook matching the 60-column CoPOS template."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Members'
+
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='2C5F2D', end_color='2C5F2D', fill_type='solid')
+
+    for col_idx, header in enumerate(COPOS_HEADERS, start=1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal='center')
+
+    # Parse the tab-delimited export and write each row
+    txt = generate_copos_export(members, coop)
+    for row_idx, line in enumerate(txt.splitlines(), start=2):
+        for col_idx, value in enumerate(line.split('\t'), start=1):
+            ws.cell(row=row_idx, column=col_idx, value=value)
+
+    # Auto-size the most useful columns
+    for col in ws.columns:
+        max_len = max((len(str(c.value)) for c in col if c.value), default=8)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 2, 30)
+
+    buf = BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

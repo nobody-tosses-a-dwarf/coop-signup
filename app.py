@@ -832,29 +832,33 @@ async def update_email_settings(request: Request, slug: str,
 
 
 @app.get("/{slug}/admin/export")
-async def export_members(request: Request, slug: str, session_data: dict = Depends(require_auth)):
-    """Export members to CoPOS format"""
+async def export_members(request: Request, slug: str, fmt: str = 'txt', session_data: dict = Depends(require_auth)):
+    """Export members to CoPOS format (txt or xlsx)"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
         raise HTTPException(status_code=404, detail="Co-op not found")
-    
-    # Verify admin access
+
     if not session_data.get('is_superadmin'):
         if session_data.get('coop_id') != coop['id']:
             raise HTTPException(status_code=403, detail="Access denied")
-    
+
     members = db.get_all_members(coop['id'])
-    export_content = copos_export.generate_copos_export(members, coop)
-    
-    filename = f"MEMBERS{datetime.now().strftime('%Y%m%d')}.TXT"
-    
-    return Response(
-        content=export_content,
-        media_type="text/plain",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"'
-        }
-    )
+    date_str = datetime.now().strftime('%Y%m%d')
+
+    if fmt == 'xlsx':
+        content = copos_export.generate_copos_export_xlsx(members, coop)
+        return Response(
+            content=content,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="MEMBERS{date_str}.xlsx"'}
+        )
+    else:
+        content = copos_export.generate_copos_export(members, coop)
+        return Response(
+            content=content,
+            media_type="text/plain",
+            headers={"Content-Disposition": f'attachment; filename="MEMBERS{date_str}.TXT"'}
+        )
 
 @app.get("/{slug}/qr")
 async def get_qr_code(request: Request, slug: str):

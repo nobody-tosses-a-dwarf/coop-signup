@@ -330,7 +330,8 @@
         <div class="section">
             <div class="section-header">
                 <h2>Member List</h2>
-                <a href="/{{ coop.slug }}/admin/export" class="btn">Export to CoPOS</a>
+                <a href="/{{ coop.slug }}/admin/export?fmt=txt" class="btn">Export CoPOS (.txt)</a>
+                <a href="/{{ coop.slug }}/admin/export?fmt=xlsx" class="btn" style="margin-left:8px;">Export Excel (.xlsx)</a>
             </div>
 
             {% if members %}
