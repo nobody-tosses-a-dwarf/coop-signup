@@ -136,13 +136,74 @@ def migrate_db():
             
             # Add newsletter to members if it doesn't exist
             cursor.execute("""
-                DO $$ 
+                DO $$
                 BEGIN
                     IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
+                        SELECT 1 FROM information_schema.columns
                         WHERE table_name='members' AND column_name='newsletter'
                     ) THEN
                         ALTER TABLE members ADD COLUMN newsletter BOOLEAN DEFAULT TRUE;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='members' AND column_name='stripe_payment_id'
+                    ) THEN
+                        ALTER TABLE members ADD COLUMN stripe_payment_id TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='members' AND column_name='equity_paid'
+                    ) THEN
+                        ALTER TABLE members ADD COLUMN equity_paid DECIMAL(10,2) DEFAULT 0;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='members' AND column_name='payment_date'
+                    ) THEN
+                        ALTER TABLE members ADD COLUMN payment_date TIMESTAMP;
+                    END IF;
+                END $$;
+            """)
+
+            # Add email settings columns to coops if they don't exist
+            cursor.execute("""
+                DO $$
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='contact_email'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN contact_email TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='send_member_emails'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN send_member_emails BOOLEAN DEFAULT TRUE;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='member_email_subject'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN member_email_subject TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='member_email_body'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN member_email_body TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='mailchimp_api_key'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN mailchimp_api_key TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='mailchimp_audience_id'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN mailchimp_audience_id TEXT;
                     END IF;
                 END $$;
             """)
@@ -192,6 +253,51 @@ def migrate_db():
             
             try:
                 cursor.execute('ALTER TABLE members ADD COLUMN newsletter INTEGER DEFAULT 1')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE members ADD COLUMN stripe_payment_id TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE members ADD COLUMN equity_paid REAL DEFAULT 0')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE members ADD COLUMN payment_date TIMESTAMP')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN contact_email TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN send_member_emails INTEGER DEFAULT 1')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN member_email_subject TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN member_email_body TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN mailchimp_api_key TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN mailchimp_audience_id TEXT')
             except:
                 pass
         
@@ -277,6 +383,12 @@ def init_db():
             slug TEXT NOT NULL UNIQUE,
             next_member_number INTEGER DEFAULT 1,
             membership_agreement TEXT,
+            contact_email TEXT,
+            send_member_emails BOOLEAN DEFAULT TRUE,
+            member_email_subject TEXT,
+            member_email_body TEXT,
+            mailchimp_api_key TEXT,
+            mailchimp_audience_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''' if USE_POSTGRES else '''
@@ -286,6 +398,12 @@ def init_db():
             slug TEXT NOT NULL UNIQUE,
             next_member_number INTEGER DEFAULT 1,
             membership_agreement TEXT,
+            contact_email TEXT,
+            send_member_emails INTEGER DEFAULT 1,
+            member_email_subject TEXT,
+            member_email_body TEXT,
+            mailchimp_api_key TEXT,
+            mailchimp_audience_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -340,6 +458,9 @@ def init_db():
             signup_fee DECIMAL(10,2) DEFAULT 0,
             agreed_to_terms BOOLEAN DEFAULT FALSE,
             newsletter BOOLEAN DEFAULT TRUE,
+            stripe_payment_id TEXT,
+            equity_paid DECIMAL(10,2) DEFAULT 0,
+            payment_date TIMESTAMP,
             signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(coop_id, member_number)
         )
@@ -363,6 +484,9 @@ def init_db():
             signup_fee REAL DEFAULT 0,
             agreed_to_terms INTEGER DEFAULT 0,
             newsletter INTEGER DEFAULT 1,
+            stripe_payment_id TEXT,
+            equity_paid REAL DEFAULT 0,
+            payment_date TIMESTAMP,
             signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(coop_id, member_number)
         )
@@ -420,6 +544,14 @@ def init_db():
         )
     ''')
     
+    # System settings table (key-value store for superadmin-editable platform settings)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS system_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+    ''')
+
     conn.commit()
     conn.close()
 
@@ -503,22 +635,30 @@ def create_coop_admin(email: str, coop_id: int) -> str:
     """Create a co-op admin user with email as username and return temporary password"""
     conn = get_connection()
     cursor = conn.cursor()
-    
+
     temp_password = generate_temp_password()
     hashed = hash_password(temp_password)
-    
+
     try:
         if USE_POSTGRES:
             cursor.execute('''
                 INSERT INTO admin_users (username, email, password_hash, coop_id, is_superadmin)
                 VALUES (%s, %s, %s, %s, FALSE)
             ''', (email, email, hashed, coop_id))
+            cursor.execute('''
+                UPDATE coops SET contact_email = %s
+                WHERE id = %s AND (contact_email IS NULL OR contact_email = '')
+            ''', (email, coop_id))
         else:
             cursor.execute('''
                 INSERT INTO admin_users (username, email, password_hash, coop_id, is_superadmin)
                 VALUES (?, ?, ?, ?, 0)
             ''', (email, email, hashed, coop_id))
-        
+            cursor.execute('''
+                UPDATE coops SET contact_email = ?
+                WHERE id = ? AND (contact_email IS NULL OR contact_email = '')
+            ''', (email, coop_id))
+
         conn.commit()
         return temp_password
     except Exception as e:
@@ -661,7 +801,9 @@ def get_coop_by_slug(slug: str):
     
     if USE_POSTGRES:
         cursor.execute('''
-            SELECT id, name, slug, next_member_number, membership_agreement, created_at
+            SELECT id, name, slug, next_member_number, membership_agreement,
+                   contact_email, send_member_emails, member_email_subject, member_email_body,
+                   mailchimp_api_key, mailchimp_audience_id, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -672,7 +814,13 @@ def get_coop_by_slug(slug: str):
                 'slug': row[2],
                 'next_member_number': row[3],
                 'membership_agreement': row[4],
-                'created_at': row[5]
+                'contact_email': row[5],
+                'send_member_emails': row[6],
+                'member_email_subject': row[7],
+                'member_email_body': row[8],
+                'mailchimp_api_key': row[9],
+                'mailchimp_audience_id': row[10],
+                'created_at': row[11]
             }
         else:
             result = None
@@ -692,7 +840,9 @@ def get_coop_by_id(coop_id: int):
     
     if USE_POSTGRES:
         cursor.execute('''
-            SELECT id, name, slug, next_member_number, membership_agreement, created_at
+            SELECT id, name, slug, next_member_number, membership_agreement,
+                   contact_email, send_member_emails, member_email_subject, member_email_body,
+                   mailchimp_api_key, mailchimp_audience_id, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -703,7 +853,13 @@ def get_coop_by_id(coop_id: int):
                 'slug': row[2],
                 'next_member_number': row[3],
                 'membership_agreement': row[4],
-                'created_at': row[5]
+                'contact_email': row[5],
+                'send_member_emails': row[6],
+                'member_email_subject': row[7],
+                'member_email_body': row[8],
+                'mailchimp_api_key': row[9],
+                'mailchimp_audience_id': row[10],
+                'created_at': row[11]
             }
         else:
             result = None
@@ -728,6 +884,108 @@ def update_membership_agreement(coop_id: int, agreement_text: str):
     
     conn.commit()
     conn.close()
+
+def update_coop_email_settings(coop_id: int, contact_email: Optional[str],
+                               send_member_emails: bool,
+                               member_email_subject: Optional[str],
+                               member_email_body: Optional[str],
+                               mailchimp_api_key: Optional[str] = None,
+                               mailchimp_audience_id: Optional[str] = None):
+    """Update email settings for a co-op"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE coops SET contact_email = %s, send_member_emails = %s,
+                member_email_subject = %s, member_email_body = %s,
+                mailchimp_api_key = %s, mailchimp_audience_id = %s
+            WHERE id = %s
+        ''', (contact_email or None, send_member_emails,
+              member_email_subject or None, member_email_body or None,
+              mailchimp_api_key or None, mailchimp_audience_id or None, coop_id))
+    else:
+        cursor.execute('''
+            UPDATE coops SET contact_email = ?, send_member_emails = ?,
+                member_email_subject = ?, member_email_body = ?,
+                mailchimp_api_key = ?, mailchimp_audience_id = ?
+            WHERE id = ?
+        ''', (contact_email or None, 1 if send_member_emails else 0,
+              member_email_subject or None, member_email_body or None,
+              mailchimp_api_key or None, mailchimp_audience_id or None, coop_id))
+
+    conn.commit()
+    conn.close()
+
+
+def update_member(member_id: int, coop_id: int, first_name: str, last_name: str,
+                  email: str, phone: str, address: str, city: str, state: str,
+                  zip_code: str, payment_plan: str, membership_type_id: int) -> bool:
+    """Update a member's details (scoped to coop for safety)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE members SET first_name = %s, last_name = %s, email = %s, phone = %s,
+                address = %s, city = %s, state = %s, zip = %s,
+                payment_plan = %s, membership_type_id = %s
+            WHERE id = %s AND coop_id = %s
+        ''', (first_name, last_name, email, phone, address, city, state, zip_code,
+              payment_plan, membership_type_id, member_id, coop_id))
+    else:
+        cursor.execute('''
+            UPDATE members SET first_name = ?, last_name = ?, email = ?, phone = ?,
+                address = ?, city = ?, state = ?, zip = ?,
+                payment_plan = ?, membership_type_id = ?
+            WHERE id = ? AND coop_id = ?
+        ''', (first_name, last_name, email, phone, address, city, state, zip_code,
+              payment_plan, membership_type_id, member_id, coop_id))
+
+    updated = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return updated
+
+
+def get_system_setting(key: str) -> Optional[str]:
+    """Get a system setting value by key"""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('SELECT value FROM system_settings WHERE key = %s', (key,))
+        row = cursor.fetchone()
+        result = row[0] if row else None
+    else:
+        cursor.execute('SELECT value FROM system_settings WHERE key = ?', (key,))
+        row = cursor.fetchone()
+        result = row['value'] if row else None
+
+    conn.close()
+    return result
+
+
+def update_system_setting(key: str, value: Optional[str]):
+    """Set a system setting value (upsert)"""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO system_settings (key, value) VALUES (%s, %s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        ''', (key, value or None))
+    else:
+        cursor.execute('''
+            INSERT OR REPLACE INTO system_settings (key, value) VALUES (?, ?)
+        ''', (key, value or None))
+
+    conn.commit()
+    conn.close()
+
 
 def create_membership_type(coop_id: int, name: str, equity_amount: float, 
                           dues_amount: float = 0, signup_fee: float = 0,
@@ -837,10 +1095,13 @@ def delete_membership_type(type_id: int, coop_id: int):
     conn.commit()
     conn.close()
 
-def create_member(coop_id: int, membership_type_id: int, first_name: str, 
+def create_member(coop_id: int, membership_type_id: int, first_name: str,
                  last_name: str, email: str, phone: str, address: str,
                  city: str, state: str, zip_code: str, payment_plan: str,
-                 agreed_to_terms: bool = True, newsletter: bool = True):
+                 agreed_to_terms: bool = True, newsletter: bool = True,
+                 stripe_payment_id: Optional[str] = None,
+                 equity_paid: float = 0,
+                 payment_date=None):
     """Create a new member and return member info"""
     conn = get_connection()
     cursor = conn.cursor()
@@ -883,28 +1144,32 @@ def create_member(coop_id: int, membership_type_id: int, first_name: str,
     # Create member
     if USE_POSTGRES:
         cursor.execute('''
-            INSERT INTO members 
-            (coop_id, membership_type_id, member_number, first_name, last_name, 
+            INSERT INTO members
+            (coop_id, membership_type_id, member_number, first_name, last_name,
              email, phone, address, city, state, zip, payment_plan,
-             total_equity, total_dues, signup_fee, agreed_to_terms, newsletter)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             total_equity, total_dues, signup_fee, agreed_to_terms, newsletter,
+             stripe_payment_id, equity_paid, payment_date)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         ''', (coop_id, membership_type_id, member_number, first_name, last_name,
               email, phone, address, city, state, zip_code, payment_plan,
-              equity_amount, dues_amount, signup_fee, agreed_to_terms, newsletter))
+              equity_amount, dues_amount, signup_fee, agreed_to_terms, newsletter,
+              stripe_payment_id, equity_paid, payment_date))
         member_id = cursor.fetchone()[0]
     else:
         cursor.execute('''
-            INSERT INTO members 
-            (coop_id, membership_type_id, member_number, first_name, last_name, 
+            INSERT INTO members
+            (coop_id, membership_type_id, member_number, first_name, last_name,
              email, phone, address, city, state, zip, payment_plan,
-             total_equity, total_dues, signup_fee, agreed_to_terms, newsletter)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             total_equity, total_dues, signup_fee, agreed_to_terms, newsletter,
+             stripe_payment_id, equity_paid, payment_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (coop_id, membership_type_id, member_number, first_name, last_name,
               email, phone, address, city, state, zip_code, payment_plan,
               equity_amount, dues_amount, signup_fee,
               1 if agreed_to_terms else 0,
-              1 if newsletter else 0))
+              1 if newsletter else 0,
+              stripe_payment_id, equity_paid, payment_date))
         member_id = cursor.lastrowid
     
     # Create payment schedule if installments
@@ -951,7 +1216,8 @@ def get_all_members(coop_id: int):
                    m.city, m.state, m.zip, m.payment_plan,
                    m.total_equity, m.total_dues, m.signup_fee,
                    m.agreed_to_terms, m.newsletter, m.signed_up_at,
-                   mt.name as membership_type_name
+                   mt.name as membership_type_name,
+                   m.stripe_payment_id, m.equity_paid, m.payment_date
             FROM members m
             JOIN membership_types mt ON m.membership_type_id = mt.id
             WHERE m.coop_id = %s
@@ -980,7 +1246,10 @@ def get_all_members(coop_id: int):
                 'agreed_to_terms': row[16],
                 'newsletter': row[17],
                 'signed_up_at': row[18],
-                'membership_type_name': row[19]
+                'membership_type_name': row[19],
+                'stripe_payment_id': row[20],
+                'equity_paid': row[21],
+                'payment_date': row[22],
             })
     else:
         cursor.execute('''

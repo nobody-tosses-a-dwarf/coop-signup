@@ -106,13 +106,22 @@ def generate_copos_export(members: List[Dict], coop: Dict) -> str:
 
         plan = (m.get('payment_plan') or '').lower()
         row[25] = 'Y' if plan == 'installments' else 'N'               # 26 Paid in Installments
-        row[26] = ''                                                   # 27 Initial Payment Date
-        row[27] = ''                                                   # 28 One Time Sign Up Fee Paid
-        row[28] = ''                                                   # 29 Installment Fee Paid
+
+        equity_paid = float(m.get('equity_paid') or 0)
+        pmt_date = _fmt_date(m.get('payment_date')) if equity_paid > 0 else ''
+
+        row[26] = pmt_date                                             # 27 Initial Payment Date
+        row[27] = _fmt_money(equity_paid) if plan == 'full' and equity_paid > 0 else ''        # 28 One Time Sign Up Fee Paid
+        row[28] = _fmt_money(equity_paid) if plan == 'installments' and equity_paid > 0 else '' # 29 Installment Fee Paid
         row[29] = _fmt_money(m.get('total_equity'))                    # 30 Equity Contract
         row[30] = _fmt_money(m.get('total_dues', 0))                   # 31 Dues Contract
 
-        # ---- Cols 32-55: Payment slots 1-6 (blank; filled by CoPOS) ----
+        # 1st payment slot — filled when equity was paid at signup via Stripe
+        if equity_paid > 0 and pmt_date:
+            row[31] = pmt_date                                         # 32 1st Payment Date
+            row[32] = _fmt_money(equity_paid)                          # 33 Equity Pd In (1st)
+            row[33] = '0.00'                                           # 34 Dues Pd In (1st)
+        # ---- Cols 35 (Total 1st, calculated), 36-55: remaining payment slots (blank) ----
         # ---- Cols 56-58: Totals paid to date (calculated by CoPOS) ----
         # ---- Cols 59-60: CoPOS internal (must stay blank) ----
 

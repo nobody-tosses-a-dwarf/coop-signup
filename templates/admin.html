@@ -329,6 +329,75 @@
 
         <div class="section">
             <div class="section-header">
+                <h2>Member List</h2>
+                <a href="/{{ coop.slug }}/admin/export" class="btn">Export to CoPOS</a>
+            </div>
+
+            {% if members %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Type</th>
+                        <th>Equity</th>
+                        <th>Payment Plan</th>
+                        <th>Newsletter</th>
+                        <th>Signed Up</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for member in members %}
+                    <tr>
+                        <td>{{ member.member_number }}</td>
+                        <td>{{ member.first_name }} {{ member.last_name }}</td>
+                        <td>{{ member.email }}</td>
+                        <td>{{ member.membership_type_name }}</td>
+                        <td>${{ "%.2f"|format(member.total_equity) }}</td>
+                        <td>
+                            {% if member.payment_plan == 'full' %}
+                                <span class="badge badge-success">Paid in Full</span>
+                            {% elif member.payment_plan == 'installments' %}
+                                <span class="badge badge-warning">Installments</span>
+                            {% else %}
+                                <span class="badge badge-danger">Pay Later</span>
+                            {% endif %}
+                        </td>
+                        <td>{% if member.newsletter %}Yes{% else %}No{% endif %}</td>
+                        <td>{{ member.signed_up_at.strftime('%Y-%m-%d') if member.signed_up_at.strftime is defined else (member.signed_up_at|string)[:10] }}</td>
+                        <td style="white-space: nowrap;">
+                            <button type="button" class="btn btn-sm"
+                                onclick="openEditMember(this)"
+                                data-id="{{ member.id }}"
+                                data-first-name="{{ member.first_name }}"
+                                data-last-name="{{ member.last_name }}"
+                                data-email="{{ member.email }}"
+                                data-phone="{{ member.phone }}"
+                                data-address="{{ member.address }}"
+                                data-city="{{ member.city }}"
+                                data-state="{{ member.state }}"
+                                data-zip="{{ member.zip }}"
+                                data-payment-plan="{{ member.payment_plan }}"
+                                data-membership-type-id="{{ member.membership_type_id }}"
+                                data-member-number="{{ member.member_number }}">Edit</button>
+                            <form method="POST" action="/{{ coop.slug }}/admin/members/{{ member.id }}/delete" style="display:inline;"
+                                  onsubmit="return confirm('Delete member #{{ member.member_number }} - {{ member.first_name }} {{ member.last_name }}? This cannot be undone.');">
+                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="color: #666; text-align: center; padding: 40px 0;">No members yet. Share your signup link to get started!</p>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <div class="section-header">
                 <h2>Membership Types</h2>
             </div>
 
@@ -431,61 +500,6 @@
                     <button type="submit" class="btn">Create Membership Type</button>
                 </form>
             </div>
-        </div>
-
-        <div class="section">
-            <div class="section-header">
-                <h2>Member List</h2>
-                <a href="/{{ coop.slug }}/admin/export" class="btn">Export to CoPOS</a>
-            </div>
-
-            {% if members %}
-            <table>
-                <thead>
-                    <tr>
-                        <th>#</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Type</th>
-                        <th>Equity</th>
-                        <th>Payment Plan</th>
-                        <th>Newsletter</th>
-                        <th>Signed Up</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for member in members %}
-                    <tr>
-                        <td>{{ member.member_number }}</td>
-                        <td>{{ member.first_name }} {{ member.last_name }}</td>
-                        <td>{{ member.email }}</td>
-                        <td>{{ member.membership_type_name }}</td>
-                        <td>${{ "%.2f"|format(member.total_equity) }}</td>
-                        <td>
-                            {% if member.payment_plan == 'full' %}
-                                <span class="badge badge-success">Paid in Full</span>
-                            {% elif member.payment_plan == 'installments' %}
-                                <span class="badge badge-warning">Installments</span>
-                            {% else %}
-                                <span class="badge badge-danger">Pay Later</span>
-                            {% endif %}
-                        </td>
-                        <td>{% if member.newsletter %}Yes{% else %}No{% endif %}</td>
-                        <td>{{ member.signed_up_at.strftime('%Y-%m-%d') if member.signed_up_at.strftime is defined else (member.signed_up_at|string)[:10] }}</td>
-                        <td>
-                            <form method="POST" action="/{{ coop.slug }}/admin/members/{{ member.id }}/delete" style="display:inline;"
-                                  onsubmit="return confirm('Delete member #{{ member.member_number }} - {{ member.first_name }} {{ member.last_name }}? This cannot be undone.');">
-                                <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-            {% else %}
-            <p style="color: #666; text-align: center; padding: 40px 0;">No members yet. Share your signup link to get started!</p>
-            {% endif %}
         </div>
 
         <!-- Embed & Share section -->
@@ -602,10 +616,86 @@
         </div>
 
         <div class="section">
-            <div class="section-header">
-                <h2>Membership Agreement</h2>
-            </div>
+            <div class="collapsible" id="emailSettingsToggle">Email Settings</div>
+            <div class="collapsible-content" id="emailSettingsContent">
+            <form method="POST" action="/{{ coop.slug }}/admin/update-email-settings">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Reply-To Email Address</label>
+                    <input type="email" name="contact_email" value="{{ coop.contact_email or '' }}"
+                           placeholder="membership@yourcoop.org"
+                           style="max-width: 400px;">
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">
+                        When members reply to their confirmation email, replies will go to this address instead of the system default.
+                    </p>
+                </div>
 
+                <div style="margin-bottom: 20px;">
+                    <div class="checkbox-group">
+                        <input type="checkbox" name="send_member_emails" id="send_member_emails"
+                               {% if coop.send_member_emails is not false and coop.send_member_emails != 0 %}checked{% endif %}>
+                        <label for="send_member_emails">Send confirmation emails to new members</label>
+                    </div>
+                    <p style="font-size: 13px; color: #666; margin-top: 5px; margin-left: 0;">
+                        Uncheck if you handle member welcome emails through your own system (e.g. Mailchimp).
+                    </p>
+                </div>
+
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Confirmation Email Subject</label>
+                    <input type="text" name="member_email_subject"
+                           value="{{ coop.member_email_subject or '' }}"
+                           placeholder="Leave blank to use default: &quot;Welcome to {coop_name}!&quot;"
+                           style="max-width: 500px;">
+                </div>
+
+                <div class="form-group">
+                    <label>Confirmation Email Body (HTML)</label>
+                    <textarea name="member_email_body"
+                              placeholder="Leave blank to use the default template."
+                              style="min-height: 200px; font-family: monospace; font-size: 13px;">{{ coop.member_email_body or '' }}</textarea>
+                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-top: 8px; font-size: 13px;">
+                        <strong>Available placeholders:</strong>
+                        <code>{first_name}</code> &nbsp;
+                        <code>{coop_name}</code> &nbsp;
+                        <code>{member_number}</code> &nbsp;
+                        <code>{membership_type}</code> &nbsp;
+                        <code>{total_amount}</code> &nbsp;
+                        <code>{payment_plan}</code> &nbsp;
+                        <code>{payment_plan_label}</code>
+                    </div>
+                </div>
+
+                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
+
+                <h3 style="margin-bottom: 15px; font-size: 16px; color: #333;">Mailchimp Integration</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                    When members opt in to the newsletter during signup, they'll be automatically added to your Mailchimp audience. Leave blank to disable.
+                </p>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Mailchimp API Key</label>
+                        <input type="text" name="mailchimp_api_key"
+                               value="{{ coop.mailchimp_api_key or '' }}"
+                               placeholder="abc123...-us21">
+                        <p style="font-size: 12px; color: #666; margin-top: 4px;">Found in Mailchimp → Account → Extras → API Keys</p>
+                    </div>
+                    <div class="form-group">
+                        <label>Audience ID</label>
+                        <input type="text" name="mailchimp_audience_id"
+                               value="{{ coop.mailchimp_audience_id or '' }}"
+                               placeholder="a1b2c3d4e5">
+                        <p style="font-size: 12px; color: #666; margin-top: 4px;">Found in Mailchimp → Audience → Settings → Audience name and defaults</p>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn" style="margin-top: 15px;">Save Email Settings</button>
+            </form>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="collapsible" id="agreementToggle">Membership Agreement</div>
+            <div class="collapsible-content" id="agreementContent">
             <form method="POST" action="/{{ coop.slug }}/admin/update-agreement">
                 <div class="form-group">
                     <label>Agreement Text</label>
@@ -613,6 +703,78 @@
                     <p style="font-size: 13px; color: #666; margin-top: 5px;">This will be displayed on a separate page that members must review before completing signup.</p>
                 </div>
                 <button type="submit" class="btn">Save Membership Agreement</button>
+            </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Member Modal -->
+    <div id="editMemberModal" style="display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.5); overflow-y:auto;">
+        <div style="background:white; margin:40px auto; padding:30px; border-radius:8px; max-width:700px; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
+            <h3 style="margin-bottom:20px; color:#333;">Edit Member <span id="editMemberLabel" style="color:#2c5f2d;"></span></h3>
+            <form id="editMemberForm" method="POST">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" id="editFirstName" name="first_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="editLastName" name="last_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Email</label>
+                        <input type="email" id="editEmail" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="text" id="editPhone" name="phone">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Address *</label>
+                    <input type="text" id="editAddress" name="address" required>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>City *</label>
+                        <input type="text" id="editCity" name="city" required>
+                    </div>
+                    <div class="form-group">
+                        <label>State *</label>
+                        <select id="editState" name="state" required>
+                            {% for state in states %}
+                            <option value="{{ state }}">{{ state }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>ZIP *</label>
+                        <input type="text" id="editZip" name="zip" required>
+                    </div>
+                </div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Payment Plan *</label>
+                        <select id="editPaymentPlan" name="payment_plan" required>
+                            <option value="full">Paid in Full</option>
+                            <option value="installments">Installments</option>
+                            <option value="later">Pay Later</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Membership Type *</label>
+                        <select id="editMembershipType" name="membership_type_id" required>
+                            {% for type in membership_types %}
+                            <option value="{{ type.id }}">{{ type.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:20px;">
+                    <button type="submit" class="btn">Save Changes</button>
+                    <button type="button" class="btn" style="background:#6c757d;" onclick="closeEditMember()">Cancel</button>
+                </div>
             </form>
         </div>
     </div>
@@ -636,10 +798,12 @@
 
         // Collapsibles
         var collapsibles = [
-            {toggle: 'addTypeToggle', content: 'addTypeForm'},
-            {toggle: 'linkToggle',    content: 'linkContent'},
-            {toggle: 'qrToggle',      content: 'qrContent'},
-            {toggle: 'embedToggle',   content: 'embedContent'}
+            {toggle: 'addTypeToggle',       content: 'addTypeForm'},
+            {toggle: 'linkToggle',          content: 'linkContent'},
+            {toggle: 'qrToggle',            content: 'qrContent'},
+            {toggle: 'embedToggle',         content: 'embedContent'},
+            {toggle: 'emailSettingsToggle', content: 'emailSettingsContent'},
+            {toggle: 'agreementToggle',     content: 'agreementContent'}
         ];
         collapsibles.forEach(function(item) {
             var toggle  = document.getElementById(item.toggle);
@@ -712,6 +876,38 @@
                 btn.classList.remove('copied');
             }, 1500);
         }
+
+        var COOP_SLUG_FOR_EDIT = {{ coop.slug | tojson }};
+
+        function openEditMember(btn) {
+            var d = btn.dataset;
+            document.getElementById('editMemberLabel').textContent = '#' + d.memberNumber;
+            document.getElementById('editFirstName').value = d.firstName;
+            document.getElementById('editLastName').value = d.lastName;
+            document.getElementById('editEmail').value = d.email;
+            document.getElementById('editPhone').value = d.phone;
+            document.getElementById('editAddress').value = d.address;
+            document.getElementById('editCity').value = d.city;
+            document.getElementById('editState').value = d.state;
+            document.getElementById('editZip').value = d.zip;
+            document.getElementById('editPaymentPlan').value = d.paymentPlan;
+            document.getElementById('editMembershipType').value = d.membershipTypeId;
+            document.getElementById('editMemberForm').action =
+                '/' + COOP_SLUG_FOR_EDIT + '/admin/members/' + d.id + '/edit';
+            document.getElementById('editMemberModal').style.display = 'block';
+        }
+
+        function closeEditMember() {
+            document.getElementById('editMemberModal').style.display = 'none';
+        }
+
+        document.getElementById('editMemberModal').addEventListener('click', function(e) {
+            if (e.target === this) closeEditMember();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeEditMember();
+        });
 
         function toggleEditForm(id) {
             var el = document.getElementById(id);
