@@ -431,6 +431,7 @@ async def signup_page(request: Request, slug: str, embed: Optional[str] = None):
         "embed_options": embed_options,
         "states": validation.US_STATES,
         "stripe_publishable_key": STRIPE_PUBLISHABLE_KEY,
+        "stripe_connect_account": coop.get('stripe_account_id') or '',
     })
 
 @app.get("/{slug}/membership-agreement", response_class=HTMLResponse)
@@ -477,19 +478,97 @@ async def create_payment_intent(slug: str, body: PaymentIntentRequest):
     else:
         raise HTTPException(status_code=400, detail="No payment required for this plan")
 
+    intent_params = dict(
+        amount=amount_cents,
+        currency='usd',
+        metadata={
+            'coop_slug': slug,
+            'membership_type_id': str(body.membership_type_id),
+            'payment_plan': body.payment_plan,
+        },
+    )
     try:
-        intent = stripe_lib.PaymentIntent.create(
-            amount=amount_cents,
-            currency='usd',
-            metadata={
-                'coop_slug': slug,
-                'membership_type_id': str(body.membership_type_id),
-                'payment_plan': body.payment_plan,
-            },
-        )
+        stripe_account = coop.get('stripe_account_id')
+        if stripe_account:
+            intent = stripe_lib.PaymentIntent.create(**intent_params, stripe_account=stripe_account)
+        else:
+            intent = stripe_lib.PaymentIntent.create(**intent_params)
         return {"client_secret": intent.client_secret}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/{slug}/admin/stripe-connect")
+async def stripe_connect(request: Request, slug: str, session_data: dict = Depends(require_auth)):
+    """Start Stripe Connect Express onboarding for a co-op"""
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=400, detail="Stripe is not configured on this platform")
+
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    account_id = coop.get('stripe_account_id')
+    if not account_id:
+        account = stripe_lib.Account.create(type='express')
+        account_id = account.id
+        db.update_coop_stripe_account(coop['id'], account_id)
+
+    base_domain = os.getenv('BASE_DOMAIN', 'coopsignup.com')
+    account_link = stripe_lib.AccountLink.create(
+        account=account_id,
+        refresh_url=f"https://{base_domain}/{slug}/admin/stripe-onboard",
+        return_url=f"https://{base_domain}/{slug}/admin?stripe_connected=1",
+        type='account_onboarding',
+    )
+    return RedirectResponse(account_link.url, status_code=302)
+
+
+@app.get("/{slug}/admin/stripe-onboard")
+async def stripe_onboard_refresh(request: Request, slug: str, session_data: dict = Depends(require_auth)):
+    """Refresh a Stripe onboarding link (used as Stripe's refresh_url)"""
+    if not STRIPE_SECRET_KEY:
+        raise HTTPException(status_code=400, detail="Stripe is not configured on this platform")
+
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    account_id = coop.get('stripe_account_id')
+    if not account_id:
+        return RedirectResponse(f"/{slug}/admin", status_code=302)
+
+    base_domain = os.getenv('BASE_DOMAIN', 'coopsignup.com')
+    account_link = stripe_lib.AccountLink.create(
+        account=account_id,
+        refresh_url=f"https://{base_domain}/{slug}/admin/stripe-onboard",
+        return_url=f"https://{base_domain}/{slug}/admin?stripe_connected=1",
+        type='account_onboarding',
+    )
+    return RedirectResponse(account_link.url, status_code=302)
+
+
+@app.post("/{slug}/admin/stripe-disconnect")
+async def stripe_disconnect(request: Request, slug: str, session_data: dict = Depends(require_auth)):
+    """Disconnect the Stripe account from a co-op"""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    db.update_coop_stripe_account(coop['id'], None)
+    return RedirectResponse(f"/{slug}/admin", status_code=302)
 
 
 @app.post("/{slug}/submit")
@@ -544,7 +623,11 @@ async def submit_signup(request: Request, slug: str,
         if not payment_intent_id:
             raise HTTPException(status_code=400, detail="Payment is required to complete signup")
         try:
-            intent = stripe_lib.PaymentIntent.retrieve(payment_intent_id)
+            stripe_account = coop.get('stripe_account_id')
+            if stripe_account:
+                intent = stripe_lib.PaymentIntent.retrieve(payment_intent_id, stripe_account=stripe_account)
+            else:
+                intent = stripe_lib.PaymentIntent.retrieve(payment_intent_id)
         except Exception:
             raise HTTPException(status_code=400, detail="Could not verify payment")
         if intent.status != 'succeeded':
@@ -649,7 +732,8 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
         "payment_counts": payment_counts,
         "embed_code": embed_code,
         "base_domain": base_domain,
-        "session": session_data
+        "session": session_data,
+        "stripe_configured": bool(STRIPE_SECRET_KEY),
     })
 
 @app.post("/{slug}/admin/membership-types/create")

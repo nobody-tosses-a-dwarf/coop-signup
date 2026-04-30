@@ -620,6 +620,41 @@
         </div>
 
         <div class="section">
+            <div class="collapsible" id="stripeToggle">Stripe Payments</div>
+            <div class="collapsible-content" id="stripeContent">
+            {% if stripe_configured %}
+                {% if coop.stripe_account_id %}
+                <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:20px;">
+                    <span style="background:#d4edda; color:#155724; padding:6px 14px; border-radius:4px; font-size:14px; font-weight:500;">
+                        Connected &#10003;
+                    </span>
+                    <span style="font-size:14px; color:#555; font-family:monospace;">{{ coop.stripe_account_id }}</span>
+                </div>
+                <p style="font-size:13px; color:#666; margin-bottom:16px;">
+                    Member payments go directly to your Stripe account. Log in to your Stripe dashboard to view payouts and manage your account.
+                </p>
+                <form method="POST" action="/{{ coop.slug }}/admin/stripe-disconnect"
+                      onsubmit="return confirm('Disconnect Stripe? Future signups will fall back to demo mode (no payment collected) until you reconnect.');">
+                    <button type="submit" class="btn btn-danger">Disconnect Stripe Account</button>
+                </form>
+                {% else %}
+                <p style="font-size:14px; color:#555; margin-bottom:16px;">
+                    Connect a Stripe account so that membership payments go directly to your co-op — not through the platform.
+                    You'll be taken to Stripe to create or connect your account.
+                </p>
+                <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect">
+                    <button type="submit" class="btn" style="background:#635bff;">Connect Stripe Account</button>
+                </form>
+                {% endif %}
+            {% else %}
+                <p style="font-size:14px; color:#888;">
+                    Stripe is not configured on this platform. Contact the platform administrator to enable payments.
+                </p>
+            {% endif %}
+            </div>
+        </div>
+
+        <div class="section">
             <div class="collapsible" id="emailSettingsToggle">Email Settings</div>
             <div class="collapsible-content" id="emailSettingsContent">
             <form method="POST" action="/{{ coop.slug }}/admin/update-email-settings">
@@ -806,6 +841,7 @@
             {toggle: 'linkToggle',          content: 'linkContent'},
             {toggle: 'qrToggle',            content: 'qrContent'},
             {toggle: 'embedToggle',         content: 'embedContent'},
+            {toggle: 'stripeToggle',        content: 'stripeContent'},
             {toggle: 'emailSettingsToggle', content: 'emailSettingsContent'},
             {toggle: 'agreementToggle',     content: 'agreementContent'}
         ];

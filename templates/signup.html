@@ -413,6 +413,7 @@
         var MEMBERSHIP_TYPES = {{ membership_types | tojson }};
         var COOP_SLUG = {{ coop.slug | tojson }};
         var STRIPE_KEY = {{ stripe_publishable_key | tojson }};
+        var STRIPE_CONNECT_ACCOUNT = {{ stripe_connect_account | tojson }};
 
         // Visual feedback for membership type selection
         document.querySelectorAll('.membership-type input[type="radio"]').forEach(radio => {
@@ -466,7 +467,9 @@
         }
 
         {% if stripe_publishable_key %}
-        var stripe = Stripe(STRIPE_KEY);
+        var stripe = STRIPE_CONNECT_ACCOUNT
+            ? Stripe(STRIPE_KEY, {stripeAccount: STRIPE_CONNECT_ACCOUNT})
+            : Stripe(STRIPE_KEY);
         var elements = stripe.elements();
         var cardElement = elements.create('card', {style: {base: {fontSize: '16px'}}});
         cardElement.mount('#card-element');

@@ -205,6 +205,12 @@ def migrate_db():
                     ) THEN
                         ALTER TABLE coops ADD COLUMN mailchimp_audience_id TEXT;
                     END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='stripe_account_id'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN stripe_account_id TEXT;
+                    END IF;
                 END $$;
             """)
         else:
@@ -300,7 +306,12 @@ def migrate_db():
                 cursor.execute('ALTER TABLE coops ADD COLUMN mailchimp_audience_id TEXT')
             except:
                 pass
-        
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN stripe_account_id TEXT')
+            except:
+                pass
+
         conn.commit()
     except Exception as e:
         print(f"Migration warning: {e}")
@@ -389,6 +400,7 @@ def init_db():
             member_email_body TEXT,
             mailchimp_api_key TEXT,
             mailchimp_audience_id TEXT,
+            stripe_account_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''' if USE_POSTGRES else '''
@@ -404,6 +416,7 @@ def init_db():
             member_email_body TEXT,
             mailchimp_api_key TEXT,
             mailchimp_audience_id TEXT,
+            stripe_account_id TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -803,7 +816,7 @@ def get_coop_by_slug(slug: str):
         cursor.execute('''
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
-                   mailchimp_api_key, mailchimp_audience_id, created_at
+                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -820,14 +833,15 @@ def get_coop_by_slug(slug: str):
                 'member_email_body': row[8],
                 'mailchimp_api_key': row[9],
                 'mailchimp_audience_id': row[10],
-                'created_at': row[11]
+                'stripe_account_id': row[11],
+                'created_at': row[12]
             }
         else:
             result = None
     else:
         cursor.execute('SELECT * FROM coops WHERE slug = ?', (slug,))
         result = cursor.fetchone()
-    
+
     conn.close()
     return result
 
@@ -842,7 +856,7 @@ def get_coop_by_id(coop_id: int):
         cursor.execute('''
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
-                   mailchimp_api_key, mailchimp_audience_id, created_at
+                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -859,14 +873,15 @@ def get_coop_by_id(coop_id: int):
                 'member_email_body': row[8],
                 'mailchimp_api_key': row[9],
                 'mailchimp_audience_id': row[10],
-                'created_at': row[11]
+                'stripe_account_id': row[11],
+                'created_at': row[12]
             }
         else:
             result = None
     else:
         cursor.execute('SELECT * FROM coops WHERE id = ?', (coop_id,))
         result = cursor.fetchone()
-    
+
     conn.close()
     return result
 
@@ -1289,6 +1304,20 @@ def delete_member(member_id: int, coop_id: int) -> bool:
     conn.commit()
     conn.close()
     return deleted
+
+def update_coop_stripe_account(coop_id: int, stripe_account_id: Optional[str]):
+    """Set or clear the Stripe Connect account ID for a co-op"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('UPDATE coops SET stripe_account_id = %s WHERE id = %s',
+                       (stripe_account_id, coop_id))
+    else:
+        cursor.execute('UPDATE coops SET stripe_account_id = ? WHERE id = ?',
+                       (stripe_account_id, coop_id))
+    conn.commit()
+    conn.close()
+
 
 def delete_coop_cascade(coop_id: int) -> bool:
     """Delete a co-op and let foreign-key CASCADE remove all related rows.
