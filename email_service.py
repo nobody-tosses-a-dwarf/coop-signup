@@ -25,7 +25,7 @@ DEFAULT_MEMBER_BODY = """\
         <strong>Payment Plan:</strong> {payment_plan_label}
     </p>
 
-    <p>You should receive additional information about your membership, including payment details and how to get involved, in a separate communication from the co-op.</p>
+    <p>{payment_note}</p>
 
     <p>If you have any questions, please don't hesitate to reach out to us.</p>
 
@@ -192,6 +192,12 @@ async def send_member_confirmation_email(email: str, coop_name: str, member_numb
         'later': 'Pay Later'
     }
 
+    payment_notes = {
+        'full': 'Your equity has been paid in full — no further payments are required. We look forward to seeing you at the co-op!',
+        'installments': 'Your first installment payment has been processed. The co-op will be in touch regarding your remaining payments.',
+        'later': 'You have chosen to arrange payment with the co-op directly. Please reach out to them at your earliest convenience to complete your equity payment.',
+    }
+
     variables = {
         'first_name': first_name,
         'coop_name': coop_name,
@@ -200,6 +206,7 @@ async def send_member_confirmation_email(email: str, coop_name: str, member_numb
         'total_amount': f'{total_amount:.2f}',
         'payment_plan': payment_plan,
         'payment_plan_label': payment_plan_labels.get(payment_plan, payment_plan),
+        'payment_note': payment_notes.get(payment_plan, ''),
     }
 
     subject = apply_placeholders(custom_subject or DEFAULT_MEMBER_SUBJECT, variables)
