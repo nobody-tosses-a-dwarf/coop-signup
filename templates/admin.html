@@ -39,11 +39,80 @@
 
         .container { max-width: 1400px; margin: 0 auto; padding: 40px 20px; }
 
+        /* ===== Setup checklist ===== */
+        .setup-checklist {
+            background: #fff8e1;
+            border: 1px solid #ffe082;
+            border-radius: 8px;
+            padding: 18px 24px;
+            margin-bottom: 28px;
+        }
+        .setup-checklist h3 { font-size: 14px; font-weight: 700; color: #856404; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .checklist-item { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; color: #555; }
+        .checklist-item .ci-icon { flex-shrink: 0; font-size: 15px; }
+        .checklist-item a { color: #2c5f2d; font-weight: 500; text-decoration: none; border-bottom: 1px solid #2c5f2d; }
+        .checklist-item a:hover { color: #1e4220; }
+
+        /* ===== Signup link ===== */
+        .signup-link-card {
+            background: white;
+            border: 2px solid #2c5f2d;
+            border-radius: 8px;
+            padding: 18px 24px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        }
+        .signup-link-label { font-weight: 700; color: #2c5f2d; font-size: 15px; white-space: nowrap; }
+        .signup-link-row { flex: 1; display: flex; gap: 8px; align-items: center; min-width: 200px; }
+        .signup-link-row input {
+            flex: 1;
+            padding: 9px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            background: #f8f9fa;
+        }
+
+        /* ===== Stripe callout ===== */
+        .stripe-callout {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 8px;
+            padding: 13px 20px;
+            margin-bottom: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+        .stripe-callout p { font-size: 14px; color: #856404; margin: 0; }
+        .stripe-callout-btn {
+            padding: 7px 16px;
+            background: #856404;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .stripe-callout-btn:hover { background: #6d5003; }
+
+        /* ===== Stats ===== */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 20px;
-            margin-bottom: 40px;
+            margin-bottom: 28px;
         }
         .stat-card {
             background: white;
@@ -55,10 +124,11 @@
         .stat-value { font-size: 32px; font-weight: 600; color: #2c5f2d; }
 
         .payment-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 12px; }
-        .bar-full { background: #4caf50; flex-grow: 1; }
-        .bar-installments { background: #ff9800; flex-grow: 1; }
-        .bar-later { background: #f44336; flex-grow: 1; }
+        .bar-full { background: #4caf50; }
+        .bar-installments { background: #ff9800; }
+        .bar-later { background: #f44336; }
 
+        /* ===== Sections ===== */
         .section {
             background: white;
             padding: 30px;
@@ -73,9 +143,25 @@
             margin-bottom: 20px;
             padding-bottom: 15px;
             border-bottom: 2px solid #e0e0e0;
+            flex-wrap: wrap;
+            gap: 10px;
         }
         .section-header h2 { font-size: 20px; color: #333; }
 
+        /* ===== Settings divider ===== */
+        .settings-divider {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #aaa;
+            padding: 6px 0 16px;
+            border-top: 1px solid #e0e0e0;
+            margin-top: 10px;
+            margin-bottom: 4px;
+        }
+
+        /* ===== Buttons ===== */
         .btn {
             padding: 10px 20px;
             background: #2c5f2d;
@@ -94,6 +180,31 @@
         .btn-danger:hover { background: #c82333; }
         .btn-sm { padding: 6px 12px; font-size: 13px; }
 
+        .copy-btn {
+            padding: 8px 14px;
+            background: #2c5f2d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        .copy-btn:hover { background: #1e4220; }
+        .copy-btn.copied { background: #4caf50; }
+
+        /* ===== Member search ===== */
+        .member-search {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 220px;
+        }
+        .member-search:focus { outline: none; border-color: #2c5f2d; box-shadow: 0 0 0 2px rgba(44,95,45,0.15); }
+
+        /* ===== Table ===== */
         table { width: 100%; border-collapse: collapse; }
         th { text-align: left; padding: 12px; background: #f8f9fa; font-weight: 600; border-bottom: 2px solid #dee2e6; }
         td { padding: 12px; border-bottom: 1px solid #dee2e6; }
@@ -104,6 +215,7 @@
         .badge-warning { background: #fff3cd; color: #856404; }
         .badge-danger { background: #f8d7da; color: #721c24; }
 
+        /* ===== Collapsibles ===== */
         .collapsible {
             background: #f8f9fa;
             padding: 15px;
@@ -119,13 +231,10 @@
         .collapsible:hover { background: #e9ecef; }
         .collapsible::after { content: '▼'; font-size: 12px; transition: transform 0.3s; }
         .collapsible.active::after { transform: rotate(-180deg); }
-        .collapsible-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease-out;
-        }
+        .collapsible-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
         .collapsible-content.active { max-height: 4000px; margin-bottom: 20px; }
 
+        /* ===== Forms ===== */
         .form-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -145,6 +254,7 @@
         .checkbox-group { display: flex; align-items: center; gap: 8px; }
         .checkbox-group label { display: inline; margin-bottom: 0; font-weight: normal; }
 
+        /* ===== Membership type cards ===== */
         .type-card {
             background: #f8f9fa;
             padding: 15px;
@@ -165,12 +275,7 @@
             border-radius: 5px;
             border: 1px solid #e0e0e0;
         }
-
-        .embed-block + .embed-block {
-            margin-top: 25px;
-            padding-top: 25px;
-            border-top: 1px solid #eee;
-        }
+        .embed-block + .embed-block { margin-top: 25px; padding-top: 25px; border-top: 1px solid #eee; }
         .embed-block-title {
             font-size: 14px;
             font-weight: 600;
@@ -179,7 +284,6 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
-
         .link-row { display: flex; gap: 8px; align-items: center; }
         .link-row input {
             flex: 1;
@@ -190,7 +294,6 @@
             font-size: 13px;
             background: #f8f9fa;
         }
-
         .code-output {
             width: 100%;
             padding: 12px;
@@ -202,92 +305,32 @@
             resize: vertical;
             min-height: 90px;
         }
-
-        .option-row {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 0;
-            border-bottom: 1px solid #f0f0f0;
-        }
+        .option-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
         .option-row:last-child { border-bottom: none; }
         .option-row .option-label { flex: 0 0 180px; font-weight: 500; }
         .option-row .option-control { flex: 0 0 auto; }
-        .option-row .option-help {
-            flex: 1;
-            font-size: 13px;
-            color: #666;
-        }
-
+        .option-row .option-help { flex: 1; font-size: 13px; color: #666; }
         .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .toggle-slider {
-            position: absolute;
-            cursor: pointer;
+            position: absolute; cursor: pointer;
             top: 0; left: 0; right: 0; bottom: 0;
-            background-color: #ccc;
-            transition: 0.3s;
-            border-radius: 24px;
+            background-color: #ccc; transition: 0.3s; border-radius: 24px;
         }
         .toggle-slider:before {
-            position: absolute;
-            content: "";
-            height: 18px; width: 18px;
-            left: 3px; bottom: 3px;
-            background-color: white;
-            transition: 0.3s;
-            border-radius: 50%;
+            position: absolute; content: "";
+            height: 18px; width: 18px; left: 3px; bottom: 3px;
+            background-color: white; transition: 0.3s; border-radius: 50%;
         }
         .toggle-switch input:checked + .toggle-slider { background-color: #2c5f2d; }
         .toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
-
-        .number-input, .select-input {
-            padding: 6px 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
+        .number-input, .select-input { padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; }
         .number-input { width: 90px; }
-
-        .qr-wrap {
-            display: flex;
-            gap: 30px;
-            align-items: flex-start;
-            flex-wrap: wrap;
-        }
-        .qr-img-box {
-            background: white;
-            border: 1px solid #ddd;
-            padding: 15px;
-            border-radius: 8px;
-            display: inline-block;
-        }
-        .qr-img-box img {
-            display: block;
-            width: 280px;
-            height: 280px;
-        }
+        .qr-wrap { display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap; }
+        .qr-img-box { background: white; border: 1px solid #ddd; padding: 15px; border-radius: 8px; display: inline-block; }
+        .qr-img-box img { display: block; width: 280px; height: 280px; }
         .qr-actions { display: flex; flex-direction: column; gap: 10px; }
-
-        .copy-btn {
-            padding: 8px 14px;
-            background: #2c5f2d;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            white-space: nowrap;
-        }
-        .copy-btn:hover { background: #1e4220; }
-        .copy-btn.copied { background: #4caf50; }
-
-        .preview-note {
-            margin-top: 10px;
-            font-size: 13px;
-            color: #666;
-        }
+        .preview-note { margin-top: 10px; font-size: 13px; color: #666; }
     </style>
 </head>
 <body>
@@ -301,44 +344,101 @@
     </div>
 
     <div class="container">
+
+        {% set missing_types = membership_types | length == 0 %}
+        {% set missing_stripe = stripe_configured and not coop.stripe_account_id %}
+        {% set missing_agreement = not coop.membership_agreement %}
+        {% if missing_types or missing_stripe %}
+        <div class="setup-checklist">
+            <h3>Getting started</h3>
+            {% if missing_types %}
+            <div class="checklist-item">
+                <span class="ci-icon">&#9744;</span>
+                <span><a href="#membershipTypes">Add at least one membership type</a> — members can't sign up until you do.</span>
+            </div>
+            {% else %}
+            <div class="checklist-item">
+                <span class="ci-icon" style="color:#2c5f2d;">&#10003;</span>
+                <span style="color:#888;">Membership types configured</span>
+            </div>
+            {% endif %}
+            {% if missing_stripe %}
+            <div class="checklist-item">
+                <span class="ci-icon">&#9744;</span>
+                <span><a href="#stripeSection">Connect your Stripe account</a> — members can't pay until you do.</span>
+            </div>
+            {% else %}
+            <div class="checklist-item">
+                <span class="ci-icon" style="color:#2c5f2d;">&#10003;</span>
+                <span style="color:#888;">Stripe connected</span>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- Stats -->
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-label">Total Members</div>
                 <div class="stat-value">{{ total_members }}</div>
             </div>
-
             <div class="stat-card">
                 <div class="stat-label">Total Equity</div>
                 <div class="stat-value">${{ "%.2f"|format(total_equity) }}</div>
             </div>
-
             <div class="stat-card">
                 <div class="stat-label">Payment Plans</div>
                 <div class="stat-value" style="font-size: 14px; margin-top: 8px;">
-                    <div style="margin-bottom: 4px;">Full: {{ payment_counts.full }}</div>
+                    <div style="margin-bottom: 4px;">Paid in Full: {{ payment_counts.full }}</div>
                     <div style="margin-bottom: 4px;">Installments: {{ payment_counts.installments }}</div>
                     <div>Pay Later: {{ payment_counts.later }}</div>
                 </div>
                 {% set bar_total = payment_counts.full + payment_counts.installments + payment_counts.later %}
-                <div class="payment-bar">
+                {% if bar_total > 0 %}
+                <div class="payment-bar" style="margin-top:12px;">
                     {% if payment_counts.full > 0 %}<div class="bar-full" style="flex-basis: {{ (payment_counts.full / bar_total * 100)|round(1) }}%"></div>{% endif %}
                     {% if payment_counts.installments > 0 %}<div class="bar-installments" style="flex-basis: {{ (payment_counts.installments / bar_total * 100)|round(1) }}%"></div>{% endif %}
                     {% if payment_counts.later > 0 %}<div class="bar-later" style="flex-basis: {{ (payment_counts.later / bar_total * 100)|round(1) }}%"></div>{% endif %}
                 </div>
+                {% endif %}
             </div>
         </div>
 
+        <!-- Signup link — always visible -->
+        <div class="signup-link-card">
+            <span class="signup-link-label">Your Signup Link</span>
+            <div class="signup-link-row">
+                <input type="text" id="signup-link-top" readonly>
+                <button class="copy-btn" onclick="copyFromInput('signup-link-top', this)">Copy</button>
+                <a id="signup-link-open" href="" target="_blank" class="copy-btn" style="text-decoration:none;">Open</a>
+            </div>
+        </div>
+
+        <!-- Stripe callout — only when Stripe is enabled but not connected -->
+        {% if stripe_configured and not coop.stripe_account_id %}
+        <div class="stripe-callout" id="stripeSection">
+            <p>&#9888;&nbsp; <strong>Payments not active.</strong> Members are signing up without paying. Connect Stripe so your co-op collects equity at signup.</p>
+            <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect" style="margin:0;">
+                <button type="submit" class="stripe-callout-btn">Connect Stripe</button>
+            </form>
+        </div>
+        {% endif %}
+
+        <!-- Members -->
         <div class="section">
             <div class="section-header">
-                <h2>Member List</h2>
-                <div style="display:flex; gap:8px;">
-                    <a href="/{{ coop.slug }}/admin/export?fmt=txt" class="btn">Export CoPOS (.txt)</a>
-                    <a href="/{{ coop.slug }}/admin/export?fmt=xlsx" class="btn">Export Excel (.xlsx)</a>
+                <h2>Members</h2>
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <input type="text" class="member-search" id="memberSearch"
+                           placeholder="Search name or email…"
+                           oninput="filterMembers(this.value)">
+                    <a href="/{{ coop.slug }}/admin/export?fmt=txt" class="btn btn-sm">Export CoPOS (.txt)</a>
+                    <a href="/{{ coop.slug }}/admin/export?fmt=xlsx" class="btn btn-sm">Export Excel (.xlsx)</a>
                 </div>
             </div>
 
             {% if members %}
-            <table>
+            <table id="memberTable">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -354,7 +454,8 @@
                 </thead>
                 <tbody>
                     {% for member in members %}
-                    <tr{% if loop.index > 10 %} class="member-overflow" style="display:none;"{% endif %}>
+                    <tr{% if loop.index > 10 %} class="member-overflow" style="display:none;"{% endif %}
+                        data-search="{{ member.first_name|lower }} {{ member.last_name|lower }} {{ member.email|lower }}">
                         <td>{{ member.member_number }}</td>
                         <td>{{ member.first_name }} {{ member.last_name }}</td>
                         <td>{{ member.email }}</td>
@@ -396,7 +497,7 @@
                 </tbody>
             </table>
             {% if members | length > 10 %}
-            <div style="text-align:center; margin-top:16px;">
+            <div style="text-align:center; margin-top:16px;" id="showAllWrap">
                 <button id="showAllMembers" class="btn" style="background:#6c757d;"
                         onclick="toggleAllMembers()">
                     Show all {{ members | length }} members
@@ -408,7 +509,11 @@
             {% endif %}
         </div>
 
-        <div class="section">
+        <!-- Settings divider -->
+        <div class="settings-divider">Setup &amp; Settings</div>
+
+        <!-- Membership Types -->
+        <div class="section" id="membershipTypes">
             <div class="section-header">
                 <h2>Membership Types</h2>
             </div>
@@ -497,7 +602,6 @@
                             <input type="number" name="signup_fee" step="0.01" value="0" placeholder="0.00">
                         </div>
                     </div>
-
                     <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap; margin-bottom: 15px;">
                         <div class="checkbox-group">
                             <input type="checkbox" name="allows_installments" id="allows_inst" checked>
@@ -508,126 +612,13 @@
                             <input type="number" name="installment_count" value="4" min="2" max="12" style="width: 80px;">
                         </div>
                     </div>
-
                     <button type="submit" class="btn">Create Membership Type</button>
                 </form>
             </div>
         </div>
 
-        <!-- Embed & Share section -->
-        <div class="section">
-            <div class="section-header">
-                <h2>Embed &amp; Share</h2>
-            </div>
-
-            <!-- Direct Link -->
-            <div class="collapsible" id="linkToggle">Direct Link</div>
-            <div class="collapsible-content" id="linkContent">
-                <div class="embed-inner">
-                    <div class="embed-block">
-                        <div class="embed-block-title">Signup URL</div>
-                        <div class="link-row">
-                            <input type="text" id="direct-link-input" readonly>
-                            <button class="copy-btn" onclick="copyFromInput('direct-link-input', this)">Copy</button>
-                        </div>
-                        <p class="preview-note">Share this URL directly, or use it for flyers, posters, and social media.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- QR Code -->
-            <div class="collapsible" id="qrToggle">QR Code</div>
-            <div class="collapsible-content" id="qrContent">
-                <div class="embed-inner">
-                    <div class="qr-wrap">
-                        <div class="qr-img-box">
-                            <img id="qr-img" src="" alt="QR Code">
-                        </div>
-                        <div class="qr-actions">
-                            <a id="qr-download" href="" download="signup-qr.png" class="btn">Download QR Code</a>
-                            <p class="preview-note" style="margin: 0; max-width: 250px;">
-                                Scans directly to your signup URL. Print on flyers or display at events.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Embed Code with interactive toggles -->
-            <div class="collapsible" id="embedToggle">Embed on Your Website</div>
-            <div class="collapsible-content" id="embedContent">
-                <div class="embed-inner">
-                    <div class="embed-block">
-                        <div class="embed-block-title">Embed Options</div>
-
-                        <div class="option-row">
-                            <label class="option-label" for="opt-header">Show co-op header</label>
-                            <div class="option-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="opt-header" checked onchange="updateEmbed()">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <span class="option-help">Shows &quot;Join {{ coop.name }}&quot; title above the form</span>
-                        </div>
-
-                        <div class="option-row">
-                            <label class="option-label" for="opt-bg">Show background</label>
-                            <div class="option-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="opt-bg" checked onchange="updateEmbed()">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <span class="option-help">Gradient background and card shadow. Turn off for transparent embed.</span>
-                        </div>
-
-                        <div class="option-row">
-                            <label class="option-label" for="opt-width">Form max width</label>
-                            <div class="option-control">
-                                <select id="opt-width" class="select-input" onchange="updateEmbed()">
-                                    <option value="800px">800px (default)</option>
-                                    <option value="600px">600px</option>
-                                    <option value="700px">700px</option>
-                                    <option value="100%">100% (fill container)</option>
-                                </select>
-                            </div>
-                            <span class="option-help">Maximum width of the form content inside the iframe.</span>
-                        </div>
-
-                        <div class="option-row">
-                            <label class="option-label" for="opt-height">Iframe height</label>
-                            <div class="option-control">
-                                <input type="number" id="opt-height" class="number-input" value="1000" min="400" max="3000" step="50" onchange="updateEmbed()">
-                                <span style="color:#666; margin-left:5px;">px</span>
-                            </div>
-                            <span class="option-help">Height of the iframe on your page.</span>
-                        </div>
-                    </div>
-
-                    <div class="embed-block">
-                        <div class="embed-block-title">Preview URL</div>
-                        <div class="link-row">
-                            <input type="text" id="preview-url-input" readonly>
-                            <button class="copy-btn" onclick="copyFromInput('preview-url-input', this)">Copy</button>
-                            <a id="preview-open" href="" target="_blank" class="copy-btn" style="text-decoration:none;">Open</a>
-                        </div>
-                        <p class="preview-note">This URL reflects the options above. Click &quot;Open&quot; to preview the form exactly as it will appear embedded.</p>
-                    </div>
-
-                    <div class="embed-block">
-                        <div class="embed-block-title">Iframe Code</div>
-                        <textarea id="embed-code-output" class="code-output" readonly></textarea>
-                        <div style="margin-top: 10px;">
-                            <button class="copy-btn" onclick="copyFromTextarea('embed-code-output', this)">Copy Iframe Code</button>
-                        </div>
-                        <p class="preview-note">Paste this into your website's HTML editor, a &quot;Custom HTML&quot; block, or an embed widget.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
+        <!-- Stripe Payments -->
+        <div class="section" {% if not coop.stripe_account_id %}id="stripeSection"{% endif %}>
             <div class="collapsible" id="stripeToggle">Stripe Payments</div>
             <div class="collapsible-content" id="stripeContent">
             {% if stripe_configured %}
@@ -662,6 +653,7 @@
             </div>
         </div>
 
+        <!-- Email Settings -->
         <div class="section">
             <div class="collapsible" id="emailSettingsToggle">Email Settings</div>
             <div class="collapsible-content" id="emailSettingsContent">
@@ -682,7 +674,7 @@
                                {% if coop.send_member_emails is not false and coop.send_member_emails != 0 %}checked{% endif %}>
                         <label for="send_member_emails">Send confirmation emails to new members</label>
                     </div>
-                    <p style="font-size: 13px; color: #666; margin-top: 5px; margin-left: 0;">
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">
                         Uncheck if you handle member welcome emails through your own system (e.g. Mailchimp).
                     </p>
                 </div>
@@ -740,6 +732,7 @@
             </div>
         </div>
 
+        <!-- Membership Agreement -->
         <div class="section">
             <div class="collapsible" id="agreementToggle">Membership Agreement</div>
             <div class="collapsible-content" id="agreementContent">
@@ -753,6 +746,98 @@
             </form>
             </div>
         </div>
+
+        <!-- Embed & Share -->
+        <div class="section">
+            <div class="collapsible" id="embedToggle">Embed &amp; Share</div>
+            <div class="collapsible-content" id="embedContent">
+                <div class="embed-inner">
+
+                    <div class="embed-block">
+                        <div class="embed-block-title">QR Code</div>
+                        <div class="qr-wrap">
+                            <div class="qr-img-box">
+                                <img id="qr-img" src="" alt="QR Code">
+                            </div>
+                            <div class="qr-actions">
+                                <a id="qr-download" href="" download="signup-qr.png" class="btn">Download QR Code</a>
+                                <p class="preview-note" style="margin: 0; max-width: 250px;">
+                                    Scans directly to your signup URL. Print on flyers or display at events.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="embed-block">
+                        <div class="embed-block-title">Embed on Your Website</div>
+
+                        <div class="option-row">
+                            <label class="option-label" for="opt-header">Show co-op header</label>
+                            <div class="option-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="opt-header" checked onchange="updateEmbed()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <span class="option-help">Shows &quot;Join {{ coop.name }}&quot; title above the form</span>
+                        </div>
+
+                        <div class="option-row">
+                            <label class="option-label" for="opt-bg">Show background</label>
+                            <div class="option-control">
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="opt-bg" checked onchange="updateEmbed()">
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <span class="option-help">Gradient background and card shadow. Turn off for transparent embed.</span>
+                        </div>
+
+                        <div class="option-row">
+                            <label class="option-label" for="opt-width">Form max width</label>
+                            <div class="option-control">
+                                <select id="opt-width" class="select-input" onchange="updateEmbed()">
+                                    <option value="800px">800px (default)</option>
+                                    <option value="600px">600px</option>
+                                    <option value="700px">700px</option>
+                                    <option value="100%">100% (fill container)</option>
+                                </select>
+                            </div>
+                            <span class="option-help">Maximum width of the form content inside the iframe.</span>
+                        </div>
+
+                        <div class="option-row">
+                            <label class="option-label" for="opt-height">Iframe height</label>
+                            <div class="option-control">
+                                <input type="number" id="opt-height" class="number-input" value="1000" min="400" max="3000" step="50" onchange="updateEmbed()">
+                                <span style="color:#666; margin-left:5px;">px</span>
+                            </div>
+                            <span class="option-help">Height of the iframe on your page.</span>
+                        </div>
+
+                        <div style="margin-top:20px;">
+                            <div class="embed-block-title">Preview URL</div>
+                            <div class="link-row">
+                                <input type="text" id="preview-url-input" readonly>
+                                <button class="copy-btn" onclick="copyFromInput('preview-url-input', this)">Copy</button>
+                                <a id="preview-open" href="" target="_blank" class="copy-btn" style="text-decoration:none;">Open</a>
+                            </div>
+                            <p class="preview-note">Click &quot;Open&quot; to preview the form exactly as it will appear embedded.</p>
+                        </div>
+
+                        <div style="margin-top:20px;">
+                            <div class="embed-block-title">Iframe Code</div>
+                            <textarea id="embed-code-output" class="code-output" readonly></textarea>
+                            <div style="margin-top: 10px;">
+                                <button class="copy-btn" onclick="copyFromTextarea('embed-code-output', this)">Copy Iframe Code</button>
+                            </div>
+                            <p class="preview-note">Paste this into your website's HTML editor or a &quot;Custom HTML&quot; block.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
 
     <!-- Edit Member Modal -->
@@ -827,31 +912,35 @@
     </div>
 
     <script>
-        // Prevent accidental scroll-wheel changes to focused number inputs.
-        // Without this, scrolling the page with a number input focused silently
-        // increments/decrements the value by the input's step.
         document.addEventListener('wheel', function(e) {
             if (document.activeElement && document.activeElement.type === 'number') {
                 document.activeElement.blur();
             }
         }, { passive: true });
 
-        // Slug is passed as a JSON-safe string so spaces or special chars do not break rendering.
         var COOP_SLUG = {{ coop.slug | tojson }};
-        var BASE_ORIGIN = window.location.origin;  // e.g. "https://coopsignup.com"
-
-        // URL-encode the slug path segment so spaces/special chars render as %20 etc.
+        var BASE_ORIGIN = window.location.origin;
         var SLUG_ENCODED = encodeURIComponent(COOP_SLUG);
 
-        // Collapsibles
+        // ---- Signup link (top card) ----
+        var directUrl = BASE_ORIGIN + '/' + SLUG_ENCODED;
+        var topLinkEl = document.getElementById('signup-link-top');
+        if (topLinkEl) topLinkEl.value = directUrl;
+        var openEl = document.getElementById('signup-link-open');
+        if (openEl) openEl.href = directUrl;
+
+        // ---- QR ----
+        var qrUrl = BASE_ORIGIN + '/' + SLUG_ENCODED + '/qr';
+        document.getElementById('qr-img').src = qrUrl;
+        document.getElementById('qr-download').href = qrUrl;
+
+        // ---- Collapsibles ----
         var collapsibles = [
             {toggle: 'addTypeToggle',       content: 'addTypeForm'},
-            {toggle: 'linkToggle',          content: 'linkContent'},
-            {toggle: 'qrToggle',            content: 'qrContent'},
-            {toggle: 'embedToggle',         content: 'embedContent'},
             {toggle: 'stripeToggle',        content: 'stripeContent'},
             {toggle: 'emailSettingsToggle', content: 'emailSettingsContent'},
-            {toggle: 'agreementToggle',     content: 'agreementContent'}
+            {toggle: 'agreementToggle',     content: 'agreementContent'},
+            {toggle: 'embedToggle',         content: 'embedContent'}
         ];
         collapsibles.forEach(function(item) {
             var toggle  = document.getElementById(item.toggle);
@@ -863,25 +952,50 @@
             });
         });
 
-        // ---- Direct link and QR ----
-        var directUrl = BASE_ORIGIN + '/' + SLUG_ENCODED;
-        document.getElementById('direct-link-input').value = directUrl;
+        // ---- Member search ----
+        function filterMembers(query) {
+            var q = query.trim().toLowerCase();
+            var rows = document.querySelectorAll('#memberTable tbody tr');
+            var showAllWrap = document.getElementById('showAllWrap');
 
-        var qrUrl = BASE_ORIGIN + '/' + SLUG_ENCODED + '/qr';
-        document.getElementById('qr-img').src = qrUrl;
-        document.getElementById('qr-download').href = qrUrl;
+            if (q === '') {
+                // Restore default: show first 10, hide rest
+                rows.forEach(function(r, i) {
+                    r.style.display = (i < 10 || !r.classList.contains('member-overflow')) ? '' : 'none';
+                    // Re-apply original overflow hiding
+                    if (r.classList.contains('member-overflow') && !membersExpanded) {
+                        r.style.display = 'none';
+                    }
+                });
+                if (showAllWrap) showAllWrap.style.display = '';
+            } else {
+                // Show all rows that match, hide all others
+                if (showAllWrap) showAllWrap.style.display = 'none';
+                rows.forEach(function(r) {
+                    var data = (r.dataset.search || '').toLowerCase();
+                    r.style.display = data.includes(q) ? '' : 'none';
+                });
+            }
+        }
 
-        // ---- Embed options ----
-        // Server expects ?embed=1,header=off,bg=off,width=600px style.
-        // The server parses that string by splitting on commas, then each "key=value" part.
-        // encodeURIComponent will escape commas to %2C, but FastAPI decodes them back before our handler sees the value.
+        // ---- Show all / collapse members ----
+        var membersExpanded = false;
+        function toggleAllMembers() {
+            membersExpanded = !membersExpanded;
+            var rows = document.querySelectorAll('.member-overflow');
+            var btn = document.getElementById('showAllMembers');
+            rows.forEach(function(r) { r.style.display = membersExpanded ? '' : 'none'; });
+            btn.textContent = membersExpanded ? 'Show recent 10 only' : 'Show all {{ total_members }} members';
+        }
+
+        // ---- Embed builder ----
         function updateEmbed() {
             var showHeader = document.getElementById('opt-header').checked;
             var showBg     = document.getElementById('opt-bg').checked;
             var width      = document.getElementById('opt-width').value;
             var height     = document.getElementById('opt-height').value || 1000;
 
-            var parts = ['1'];  // first token is a presence marker (anything without "=" is ignored by server)
+            var parts = ['1'];
             if (!showHeader) parts.push('header=off');
             if (!showBg)     parts.push('bg=off');
             if (width && width !== '800px') parts.push('width=' + width);
@@ -904,27 +1018,21 @@
             var el = document.getElementById(id);
             el.select();
             el.setSelectionRange(0, 99999);
-            navigator.clipboard.writeText(el.value).then(function() {
-                flashCopied(btn);
-            });
+            navigator.clipboard.writeText(el.value).then(function() { flashCopied(btn); });
         }
         function copyFromTextarea(id, btn) {
             var el = document.getElementById(id);
             el.select();
-            navigator.clipboard.writeText(el.value).then(function() {
-                flashCopied(btn);
-            });
+            navigator.clipboard.writeText(el.value).then(function() { flashCopied(btn); });
         }
         function flashCopied(btn) {
             var original = btn.textContent;
             btn.textContent = 'Copied!';
             btn.classList.add('copied');
-            setTimeout(function() {
-                btn.textContent = original;
-                btn.classList.remove('copied');
-            }, 1500);
+            setTimeout(function() { btn.textContent = original; btn.classList.remove('copied'); }, 1500);
         }
 
+        // ---- Edit member modal ----
         var COOP_SLUG_FOR_EDIT = {{ coop.slug | tojson }};
 
         function openEditMember(btn) {
@@ -962,17 +1070,7 @@
             el.style.display = el.style.display === 'none' ? 'block' : 'none';
         }
 
-        // Initialize embed code on load
         updateEmbed();
-
-        var membersExpanded = false;
-        function toggleAllMembers() {
-            membersExpanded = !membersExpanded;
-            var rows = document.querySelectorAll('.member-overflow');
-            var btn = document.getElementById('showAllMembers');
-            rows.forEach(function(r) { r.style.display = membersExpanded ? '' : 'none'; });
-            btn.textContent = membersExpanded ? 'Show recent 10 only' : 'Show all {{ total_members }} members';
-        }
     </script>
 </body>
 </html>
