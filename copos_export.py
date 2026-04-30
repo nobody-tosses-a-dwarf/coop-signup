@@ -67,9 +67,9 @@ def generate_copos_export(members: List[Dict], coop: Dict) -> str:
     One row per member. No header row is emitted (CoPOS imports start at
     row 7 in the template; the template's first six rows are documentation).
     """
-    lines = []
+    lines = ['\t'.join(COPOS_HEADERS)]
 
-    for m in members:
+    for m in sorted(members, key=lambda m: m.get('member_number', 0)):
         row = [''] * 60  # 60 columns, all blank by default
 
         # ---- Identity (cols 1-9) ----
@@ -170,9 +170,9 @@ def generate_copos_export_xlsx(members: List[Dict], coop: Dict) -> bytes:
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal='center')
 
-    # Parse the tab-delimited export and write each row
+    # Parse the tab-delimited export and write each row (skip header line)
     txt = generate_copos_export(members, coop)
-    for row_idx, line in enumerate(txt.splitlines(), start=2):
+    for row_idx, line in enumerate(txt.splitlines()[1:], start=2):
         for col_idx, value in enumerate(line.split('\t'), start=1):
             ws.cell(row=row_idx, column=col_idx, value=value)
 
