@@ -290,36 +290,54 @@ def seed():
             equity_paid = 0.0
             payment_date = None
             if plan in ('full', 'installments'):
-                # Get equity amount for this type
-                cursor.execute(f'SELECT equity_amount, installment_count FROM membership_types WHERE id = {PH}', (type_id,))
+                # Get full type details
+                cursor.execute(
+                    f'SELECT equity_amount, dues_amount, signup_fee, installment_count FROM membership_types WHERE id = {PH}',
+                    (type_id,)
+                )
                 row = cursor.fetchone()
                 if row:
                     eq = float(row[0])
-                    ic = int(row[1])
+                    ic = int(row[3])
                     equity_paid = eq if plan == 'full' else round(eq / ic, 2)
                     payment_date = signup_dt
+
+            # Look up type amounts for total_equity / total_dues / signup_fee columns
+            cursor.execute(
+                f'SELECT equity_amount, dues_amount, signup_fee FROM membership_types WHERE id = {PH}',
+                (type_id,)
+            )
+            trow = cursor.fetchone()
+            total_equity = float(trow[0]) if trow else 0.0
+            total_dues   = float(trow[1]) if trow else 0.0
+            signup_fee   = float(trow[2]) if trow else 0.0
 
             if USE_POSTGRES:
                 cursor.execute(
                     f"""INSERT INTO members
                         (coop_id, membership_type_id, member_number, first_name, last_name,
                          email, phone, address, city, state, zip, payment_plan,
-                         agreed_to_terms, newsletter, equity_paid, payment_date, signed_up_at)
-                        VALUES ({ph(17)})""",
+                         total_equity, total_dues, signup_fee,
+                         agreed_to_terms, newsletter, equity_paid, payment_date)
+                        VALUES ({ph(19)})""",
                     (coop_id, type_id, member_number, first, last,
                      email, phone, address, city, state, zip_code, plan,
-                     True, newsletter, equity_paid, payment_date, signup_dt)
+                     total_equity, total_dues, signup_fee,
+                     True, newsletter, equity_paid, payment_date)
                 )
             else:
                 cursor.execute(
                     f"""INSERT INTO members
                         (coop_id, membership_type_id, member_number, first_name, last_name,
                          email, phone, address, city, state, zip, payment_plan,
-                         agreed_to_terms, newsletter, equity_paid, payment_date, signed_up_at)
-                        VALUES ({ph(17)})""",
+                         total_equity, total_dues, signup_fee,
+                         agreed_to_terms, newsletter, equity_paid, payment_date)
+                        VALUES ({ph(19)})""",
                     (coop_id, type_id, member_number, first, last,
                      email, phone, address, city, state, zip_code, plan,
-                     1, 1 if newsletter else 0, equity_paid, payment_date, signup_dt.isoformat())
+                     total_equity, total_dues, signup_fee,
+                     1, 1 if newsletter else 0, equity_paid,
+                     payment_date.isoformat() if payment_date else None)
                 )
             created += 1
 

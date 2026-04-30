@@ -93,6 +93,7 @@
             outline: none;
             border-color: #2c5f2d;
         }
+
         
         .membership-types {
             display: grid;
@@ -212,6 +213,41 @@
             background: #ccc;
             cursor: not-allowed;
         }
+
+        .payment-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .payment-box h3 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .charge-summary {
+            background: #e8f5e9;
+            border: 1px solid #c8e6c9;
+            border-radius: 5px;
+            padding: 12px 16px;
+            margin-bottom: 15px;
+            font-size: 15px;
+            color: #2c5f2d;
+            font-weight: 500;
+        }
+        #card-element {
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: white;
+        }
+        #card-errors {
+            color: #dc3545;
+            font-size: 14px;
+            margin-top: 8px;
+            min-height: 20px;
+        }
         
         @media (max-width: 600px) {
             .form-row {
@@ -276,7 +312,13 @@
                     <label for="address">Street Address *</label>
                     <input type="text" id="address" name="address" required>
                 </div>
-                
+
+                <div class="form-group">
+                    <label for="zip">ZIP Code *</label>
+                    <input type="text" id="zip" name="zip" pattern="[0-9]{5}(-[0-9]{4})?" maxlength="10" required>
+                    <div id="zip-feedback" style="font-size:13px; margin-top:5px; min-height:18px;"></div>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group">
                         <label for="city">City *</label>
@@ -292,13 +334,31 @@
                         </select>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="zip">ZIP Code *</label>
-                    <input type="text" id="zip" name="zip" pattern="[0-9]{5}(-[0-9]{4})?" required>
+            </div>
+
+            <div class="newsletter-section">
+                <div class="agreement-checkbox">
+                    <input type="checkbox" id="newsletter" name="newsletter" value="1" checked>
+                    <label for="newsletter">
+                        Yes, add me to {{ coop.name }}'s mailing list so I can receive updates and news from the co-op.
+                    </label>
                 </div>
             </div>
-            
+
+            {% if has_agreement %}
+            <div class="agreement-section">
+                <div class="agreement-checkbox">
+                    <input type="checkbox" id="agreed_to_terms" name="agreed_to_terms" required>
+                    <label for="agreed_to_terms">
+                        I have read and agree to the
+                        <a href="/{{ coop.slug }}/membership-agreement" target="_blank" class="agreement-link">
+                            Membership Agreement
+                        </a> *
+                    </label>
+                </div>
+            </div>
+            {% endif %}
+
             <div class="form-section">
                 <h2>Payment Plan</h2>
                 <div class="payment-options">
@@ -323,30 +383,19 @@
                 </div>
             </div>
             
-            <div class="newsletter-section">
-                <div class="agreement-checkbox">
-                    <input type="checkbox" id="newsletter" name="newsletter" value="1" checked>
-                    <label for="newsletter">
-                        Yes, add me to {{ coop.name }}'s mailing list so I can receive updates and news from the co-op.
-                    </label>
-                </div>
-            </div>
-            
-            {% if has_agreement %}
-            <div class="agreement-section">
-                <div class="agreement-checkbox">
-                    <input type="checkbox" id="agreed_to_terms" name="agreed_to_terms" required>
-                    <label for="agreed_to_terms">
-                        I have read and agree to the 
-                        <a href="/{{ coop.slug }}/membership-agreement" target="_blank" class="agreement-link">
-                            Membership Agreement
-                        </a> *
-                    </label>
-                </div>
+            <input type="hidden" name="payment_intent_id" id="payment_intent_id">
+
+            {% if stripe_publishable_key %}
+            <div id="card-section" class="payment-box" style="display:none;">
+                <h3>Payment</h3>
+                <div class="charge-summary" id="charge-summary"></div>
+                <label for="card-element">Card Details</label>
+                <div id="card-element"></div>
+                <div id="card-errors"></div>
             </div>
             {% endif %}
-            
-            <button type="submit">Complete Signup</button>
+
+            <button type="submit" id="submit-btn">Complete Signup</button>
         </form>
         
         {% if is_embed and embed_options.get('back') != 'off' %}
@@ -356,33 +405,188 @@
         {% endif %}
     </div>
     
+    {% if stripe_publishable_key %}
+    <script src="https://js.stripe.com/v3/"></script>
+    {% endif %}
     <script>
+        // Membership type data for amount calculations
+        var MEMBERSHIP_TYPES = {{ membership_types | tojson }};
+        var COOP_SLUG = {{ coop.slug | tojson }};
+        var STRIPE_KEY = {{ stripe_publishable_key | tojson }};
+
         // Visual feedback for membership type selection
         document.querySelectorAll('.membership-type input[type="radio"]').forEach(radio => {
             radio.addEventListener('change', function() {
-                document.querySelectorAll('.membership-type').forEach(type => {
-                    type.classList.remove('selected');
-                });
-                if (this.checked) {
-                    this.closest('.membership-type').classList.add('selected');
-                }
+                document.querySelectorAll('.membership-type').forEach(t => t.classList.remove('selected'));
+                if (this.checked) this.closest('.membership-type').classList.add('selected');
+                updateCardSection();
             });
         });
-        
+
+        document.querySelectorAll('input[name="payment_plan"]').forEach(radio => {
+            radio.addEventListener('change', updateCardSection);
+        });
+
+        function getSelectedTypeId() {
+            var r = document.querySelector('input[name="membership_type_id"]:checked');
+            return r ? parseInt(r.value) : null;
+        }
+        function getSelectedPlan() {
+            var r = document.querySelector('input[name="payment_plan"]:checked');
+            return r ? r.value : null;
+        }
+        function getSelectedType() {
+            var id = getSelectedTypeId();
+            return id ? MEMBERSHIP_TYPES.find(t => t.id === id) : null;
+        }
+
+        function updateCardSection() {
+            if (!STRIPE_KEY) return;
+            var plan = getSelectedPlan();
+            var type = getSelectedType();
+            var section = document.getElementById('card-section');
+            var summary = document.getElementById('charge-summary');
+
+            if ((plan === 'full' || plan === 'installments') && type) {
+                var amount, label;
+                if (plan === 'full') {
+                    amount = parseFloat(type.equity_amount);
+                    label = 'Charge today: $' + amount.toFixed(2) + ' (equity paid in full)';
+                } else {
+                    amount = parseFloat(type.equity_amount) / parseInt(type.installment_count);
+                    label = 'Charge today: $' + amount.toFixed(2)
+                          + ' (1st of ' + type.installment_count + ' installments)';
+                }
+                summary.textContent = label;
+                section.style.display = 'block';
+            } else {
+                section.style.display = 'none';
+            }
+            {% if is_embed %}updateHeight();{% endif %}
+        }
+
+        {% if stripe_publishable_key %}
+        var stripe = Stripe(STRIPE_KEY);
+        var elements = stripe.elements();
+        var cardElement = elements.create('card', {style: {base: {fontSize: '16px'}}});
+        cardElement.mount('#card-element');
+        cardElement.on('change', function(e) {
+            document.getElementById('card-errors').textContent = e.error ? e.error.message : '';
+        });
+
+        document.getElementById('signupForm').addEventListener('submit', async function(e) {
+            var plan = getSelectedPlan();
+            if (plan !== 'full' && plan !== 'installments') return; // pay later — submit normally
+
+            e.preventDefault();
+            var btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Processing payment…';
+            document.getElementById('card-errors').textContent = '';
+
+            // 1. Create PaymentIntent
+            var typeId = getSelectedTypeId();
+            var res, data;
+            try {
+                res = await fetch('/' + COOP_SLUG + '/create-payment-intent', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({membership_type_id: typeId, payment_plan: plan})
+                });
+                data = await res.json();
+            } catch(err) {
+                document.getElementById('card-errors').textContent = 'Network error. Please try again.';
+                btn.disabled = false;
+                btn.textContent = 'Complete Signup';
+                return;
+            }
+            if (!data.client_secret) {
+                document.getElementById('card-errors').textContent = data.detail || 'Payment error.';
+                btn.disabled = false;
+                btn.textContent = 'Complete Signup';
+                return;
+            }
+
+            // 2. Confirm card payment
+            var firstName = document.getElementById('first_name').value;
+            var lastName = document.getElementById('last_name').value;
+            var result = await stripe.confirmCardPayment(data.client_secret, {
+                payment_method: {
+                    card: cardElement,
+                    billing_details: {name: firstName + ' ' + lastName}
+                }
+            });
+
+            if (result.error) {
+                document.getElementById('card-errors').textContent = result.error.message;
+                btn.disabled = false;
+                btn.textContent = 'Complete Signup';
+                return;
+            }
+
+            // 3. Payment succeeded — attach ID and submit form
+            document.getElementById('payment_intent_id').value = result.paymentIntent.id;
+            this.submit();
+        });
+        {% endif %}
+
+        // ZIP code lookup and auto-fill
+        (function() {
+            var zipInput = document.getElementById('zip');
+            var feedback = document.getElementById('zip-feedback');
+            var lastLookedUp = '';
+
+            function lookupZip(zip) {
+                if (zip.length !== 5 || !/^\d{5}$/.test(zip) || zip === lastLookedUp) return;
+                lastLookedUp = zip;
+                feedback.style.color = '#888';
+                feedback.textContent = 'Looking up ZIP…';
+                fetch('https://api.zippopotam.us/us/' + zip)
+                    .then(function(r) { return r.ok ? r.json() : null; })
+                    .then(function(data) {
+                        if (!data || !data.places || !data.places.length) {
+                            feedback.style.color = '#dc3545';
+                            feedback.textContent = 'ZIP code not found — please check and re-enter.';
+                            return;
+                        }
+                        var place = data.places[0];
+                        var cityField = document.getElementById('city');
+                        var stateField = document.getElementById('state');
+                        if (!cityField.value) cityField.value = place['place name'];
+                        var abbr = place['state abbreviation'];
+                        if (stateField.value === '') {
+                            for (var i = 0; i < stateField.options.length; i++) {
+                                if (stateField.options[i].value === abbr) {
+                                    stateField.value = abbr;
+                                    break;
+                                }
+                            }
+                        }
+                        feedback.style.color = '#2c5f2d';
+                        feedback.textContent = place['place name'] + ', ' + abbr;
+                    })
+                    .catch(function() {
+                        feedback.style.color = '#888';
+                        feedback.textContent = '';
+                    });
+            }
+
+            zipInput.addEventListener('blur', function() { lookupZip(this.value.trim()); });
+            zipInput.addEventListener('input', function() {
+                var v = this.value.replace(/\D/g, '').slice(0, 5);
+                if (v.length === 5) lookupZip(v);
+            });
+        })();
+
         // Auto-resize iframe if embedded
         {% if is_embed %}
         function updateHeight() {
             const height = document.body.scrollHeight;
             window.parent.postMessage({type: 'resize', height: height}, '*');
         }
-        
         window.addEventListener('load', updateHeight);
         window.addEventListener('resize', updateHeight);
-        
-        // Update on form interaction
-        document.getElementById('signupForm').addEventListener('change', () => {
-            setTimeout(updateHeight, 100);
-        });
+        document.getElementById('signupForm').addEventListener('change', () => setTimeout(updateHeight, 100));
         {% endif %}
     </script>
 </body>

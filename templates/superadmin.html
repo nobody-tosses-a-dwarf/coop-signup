@@ -326,8 +326,36 @@
             <p style="color: #666;">No admin users created yet.</p>
             {% endif %}
         </div>
+        <div class="section">
+            <h2>Admin Welcome Email Template</h2>
+            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
+                This email is sent to new co-op admins when you create their account. Leave fields blank to use the built-in default.
+            </p>
+            <form method="POST" action="/superadmin/update-email-settings">
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label>Subject</label>
+                    <input type="text" name="admin_email_subject"
+                           value="{{ admin_email_subject }}"
+                           placeholder='Default: "Welcome to {coop_name} - Co-op Signup System"'>
+                </div>
+                <div class="form-group" style="margin-bottom: 8px;">
+                    <label>Body (HTML)</label>
+                    <textarea name="admin_email_body"
+                              placeholder="Leave blank to use the default template."
+                              style="width: 100%; min-height: 200px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; resize: vertical;">{{ admin_email_body }}</textarea>
+                </div>
+                <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 13px;">
+                    <strong>Available placeholders:</strong>
+                    <code>{email}</code> &nbsp;
+                    <code>{coop_name}</code> &nbsp;
+                    <code>{temp_password}</code> &nbsp;
+                    <code>{login_url}</code>
+                </div>
+                <button type="submit" class="btn">Save Email Template</button>
+            </form>
+        </div>
     </div>
-    
+
     <!-- Delete Co-op Modal -->
     <div id="deleteModal" class="modal">
         <div class="modal-content">
