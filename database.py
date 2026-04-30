@@ -1035,9 +1035,9 @@ def get_membership_types(coop_id: int):
             results.append({
                 'id': row[0],
                 'name': row[1],
-                'equity_amount': row[2],
-                'dues_amount': row[3],
-                'signup_fee': row[4],
+                'equity_amount': float(row[2]),
+                'dues_amount': float(row[3]),
+                'signup_fee': float(row[4]),
                 'allows_installments': row[5],
                 'installment_count': row[6]
             })
