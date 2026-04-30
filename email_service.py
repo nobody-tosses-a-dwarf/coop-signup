@@ -25,6 +25,14 @@ DEFAULT_MEMBER_BODY = """\
         <strong>Payment Plan:</strong> {payment_plan_label}
     </p>
 
+    <h3>Your Contact Information on File:</h3>
+    <p>
+        <strong>Name:</strong> {first_name} {last_name}<br>
+        <strong>Email:</strong> {email}<br>
+        <strong>Phone:</strong> {phone}<br>
+        <strong>Address:</strong> {address}, {city}, {state} {zip}
+    </p>
+
     <p>{payment_note}</p>
 
     <p>If you have any questions, please don't hesitate to reach out to us.</p>
@@ -182,6 +190,12 @@ async def send_password_reset_email(email: str, reset_token: str):
 async def send_member_confirmation_email(email: str, coop_name: str, member_number: int,
                                          first_name: str, membership_type: str,
                                          total_amount: float, payment_plan: str,
+                                         last_name: str = '',
+                                         phone: str = '',
+                                         address: str = '',
+                                         city: str = '',
+                                         state: str = '',
+                                         zip_code: str = '',
                                          reply_to: Optional[str] = None,
                                          custom_subject: Optional[str] = None,
                                          custom_body: Optional[str] = None):
@@ -207,6 +221,12 @@ async def send_member_confirmation_email(email: str, coop_name: str, member_numb
         'payment_plan': payment_plan,
         'payment_plan_label': payment_plan_labels.get(payment_plan, payment_plan),
         'payment_note': payment_notes.get(payment_plan, ''),
+        'last_name': last_name,
+        'phone': phone,
+        'address': address,
+        'city': city,
+        'state': state,
+        'zip': zip_code,
     }
 
     subject = apply_placeholders(custom_subject or DEFAULT_MEMBER_SUBJECT, variables)
