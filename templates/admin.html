@@ -347,8 +347,8 @@
 
         {% set missing_types = membership_types | length == 0 %}
         {% set missing_stripe = stripe_configured and not coop.stripe_account_id %}
-        {% set missing_agreement = not coop.membership_agreement %}
-        {% if missing_types or missing_stripe %}
+        {% set stripe_incomplete = stripe_configured and coop.stripe_account_id and not stripe_charges_enabled %}
+        {% if missing_types or missing_stripe or stripe_incomplete %}
         <div class="setup-checklist">
             <h3>Getting started</h3>
             {% if missing_types %}
@@ -366,6 +366,11 @@
             <div class="checklist-item">
                 <span class="ci-icon">&#9744;</span>
                 <span><a href="#stripeSection">Connect your Stripe account</a> — members can't pay until you do.</span>
+            </div>
+            {% elif stripe_incomplete %}
+            <div class="checklist-item">
+                <span class="ci-icon" style="color:#e6a817;">&#9888;</span>
+                <span><a href="#stripeSection">Finish Stripe setup</a> — onboarding isn't complete yet.</span>
             </div>
             {% else %}
             <div class="checklist-item">
@@ -413,6 +418,23 @@
                 <a id="signup-link-open" href="" target="_blank" class="copy-btn" style="text-decoration:none;">Open</a>
             </div>
         </div>
+
+        <!-- Stripe success banner — shown once on return from Stripe onboarding -->
+        {% if stripe_just_connected %}
+        <div style="background:#d4edda; border:1px solid #c3e6cb; border-radius:8px; padding:16px 22px; margin-bottom:28px; display:flex; align-items:center; gap:14px;">
+            <span style="font-size:22px;">&#10003;</span>
+            <div>
+                <strong style="color:#155724; font-size:15px;">Stripe connected!</strong>
+                <p style="color:#155724; font-size:14px; margin-top:3px;">
+                    {% if stripe_charges_enabled %}
+                    Your co-op is ready to collect payments. Members who choose to pay at signup will have their equity sent directly to your Stripe account.
+                    {% else %}
+                    Your account was created but onboarding isn't quite finished. Expand <strong>Stripe Payments</strong> below to complete setup.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Stripe callout — only when Stripe is enabled but not connected -->
         {% if stripe_configured and not coop.stripe_account_id %}
@@ -623,27 +645,53 @@
             <div class="collapsible-content" id="stripeContent">
             {% if stripe_configured %}
                 {% if coop.stripe_account_id %}
-                <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:20px;">
-                    <span style="background:#d4edda; color:#155724; padding:6px 14px; border-radius:4px; font-size:14px; font-weight:500;">
-                        Connected &#10003;
-                    </span>
-                    <span style="font-size:14px; color:#555; font-family:monospace;">{{ coop.stripe_account_id }}</span>
-                </div>
-                <p style="font-size:13px; color:#666; margin-bottom:16px;">
-                    Member payments go directly to your Stripe account. Log in to your Stripe dashboard to view payouts and manage your account.
-                </p>
-                <form method="POST" action="/{{ coop.slug }}/admin/stripe-disconnect"
-                      onsubmit="return confirm('Disconnect Stripe? Future signups will fall back to demo mode (no payment collected) until you reconnect.');">
-                    <button type="submit" class="btn btn-danger">Disconnect Stripe Account</button>
-                </form>
+                    {% if stripe_charges_enabled %}
+                    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:16px;">
+                        <span style="background:#d4edda; color:#155724; padding:6px 14px; border-radius:4px; font-size:14px; font-weight:500;">Active &#10003;</span>
+                        <span style="font-size:13px; color:#888; font-family:monospace;">{{ coop.stripe_account_id }}</span>
+                    </div>
+                    <p style="font-size:13px; color:#666; margin-bottom:16px;">
+                        Member payments go directly to your Stripe account. Log in to your
+                        <a href="https://dashboard.stripe.com" target="_blank" style="color:#2c5f2d;">Stripe dashboard</a>
+                        to view payouts and manage your account.
+                    </p>
+                    {% else %}
+                    <div style="background:#fff3cd; border:1px solid #ffc107; border-radius:6px; padding:14px 18px; margin-bottom:16px;">
+                        <strong style="color:#856404;">&#9888; Onboarding incomplete</strong>
+                        <p style="color:#856404; font-size:13px; margin-top:6px;">
+                            Your Stripe account was created but isn't ready to accept payments yet.
+                            Click the button below to finish setting up your account — you'll need your
+                            bank account details and either an EIN or SSN to complete the process.
+                        </p>
+                    </div>
+                    <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect" style="margin-bottom:16px;">
+                        <button type="submit" class="btn" style="background:#635bff;">Finish Stripe Setup</button>
+                    </form>
+                    {% endif %}
+                    <form method="POST" action="/{{ coop.slug }}/admin/stripe-disconnect"
+                          onsubmit="return confirm('Disconnect Stripe? Members can still sign up but will not be charged until you reconnect.');">
+                        <button type="submit" class="btn btn-danger btn-sm">Disconnect Stripe Account</button>
+                    </form>
                 {% else %}
-                <p style="font-size:14px; color:#555; margin-bottom:16px;">
-                    Connect a Stripe account so that membership payments go directly to your co-op — not through the platform.
-                    You'll be taken to Stripe to create or connect your account.
+                <p style="font-size:14px; color:#444; margin-bottom:14px;">
+                    Connect a Stripe account so membership payments go directly to your co-op — Stripe handles the card processing securely.
                 </p>
-                <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect">
+                <div style="background:#f8f9fa; border-radius:6px; padding:14px 18px; margin-bottom:18px; font-size:13px; color:#555;">
+                    <strong style="display:block; margin-bottom:8px; color:#333;">What you'll need:</strong>
+                    <ul style="margin-left:18px; line-height:2;">
+                        <li>Your co-op's legal name and address</li>
+                        <li>EIN (tax ID) — or SSN if you're a sole proprietor</li>
+                        <li>Bank account and routing number for payouts</li>
+                        <li>A phone number for identity verification</li>
+                    </ul>
+                    <p style="margin-top:10px; color:#777;">The whole process takes about 5 minutes. You can also start and come back later.</p>
+                </div>
+                <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect" style="margin-bottom:14px;">
                     <button type="submit" class="btn" style="background:#635bff;">Connect Stripe Account</button>
                 </form>
+                <p style="font-size:12px; color:#999;">
+                    Not ready yet? Members can still sign up and choose "Pay Later" — you can collect payment offline and connect Stripe whenever you're ready.
+                </p>
                 {% endif %}
             {% else %}
                 <p style="font-size:14px; color:#888;">

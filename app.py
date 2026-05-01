@@ -693,12 +693,23 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
     coop = db.get_coop_by_slug(slug)
     if not coop:
         raise HTTPException(status_code=404, detail="Co-op not found")
-    
+
     # Verify this admin belongs to this co-op
     if not session_data.get('is_superadmin'):
         if session_data.get('coop_id') != coop['id']:
             raise HTTPException(status_code=403, detail="Access denied")
-    
+
+    # Check Stripe Connect account status
+    stripe_charges_enabled = False
+    if STRIPE_SECRET_KEY and coop.get('stripe_account_id'):
+        try:
+            acct = stripe_lib.Account.retrieve(coop['stripe_account_id'])
+            stripe_charges_enabled = acct.charges_enabled
+        except Exception:
+            pass
+
+    stripe_just_connected = request.query_params.get('stripe_connected') == '1'
+
     members = db.get_all_members(coop['id'])
     membership_types = db.get_membership_types(coop['id'])
     
@@ -734,6 +745,8 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
         "base_domain": base_domain,
         "session": session_data,
         "stripe_configured": bool(STRIPE_SECRET_KEY),
+        "stripe_charges_enabled": stripe_charges_enabled,
+        "stripe_just_connected": stripe_just_connected,
     })
 
 @app.post("/{slug}/admin/membership-types/create")
