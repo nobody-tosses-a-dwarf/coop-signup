@@ -1,5 +1,6 @@
 import sqlite3
 import psycopg
+import bcrypt
 import hashlib
 import secrets
 import os
@@ -511,8 +512,44 @@ def init_db():
     conn.close()
 
 def hash_password(password: str) -> str:
-    """Hash a password using SHA-256"""
-    return hashlib.sha256(password.encode()).hexdigest()
+    """Hash a password using bcrypt (cost 12)."""
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+
+
+def _verify_password(password: str, stored_hash: str) -> bool:
+    """Check a password against either a bcrypt hash or a legacy SHA-256 hash.
+
+    Returns True on match. Callers should rehash legacy matches to bcrypt and
+    write the new hash back via _rehash_legacy().
+    """
+    if not stored_hash:
+        return False
+    if stored_hash.startswith('$2'):
+        try:
+            return bcrypt.checkpw(password.encode(), stored_hash.encode())
+        except (ValueError, TypeError):
+            return False
+    # Legacy SHA-256 (unsalted hex digest)
+    return hashlib.sha256(password.encode()).hexdigest() == stored_hash
+
+
+def _is_legacy_hash(stored_hash: str) -> bool:
+    return bool(stored_hash) and not stored_hash.startswith('$2')
+
+
+def _rehash_legacy(admin_id: int, password: str):
+    """Replace a legacy SHA-256 hash with a fresh bcrypt hash for this admin."""
+    new_hash = hash_password(password)
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('UPDATE admin_users SET password_hash = %s WHERE id = %s',
+                       (new_hash, admin_id))
+    else:
+        cursor.execute('UPDATE admin_users SET password_hash = ? WHERE id = ?',
+                       (new_hash, admin_id))
+    conn.commit()
+    conn.close()
 
 def generate_temp_password(length: int = 12) -> str:
     """Generate a secure random temporary password"""
@@ -552,39 +589,59 @@ def create_superadmin(password: str):
     conn.close()
 
 def verify_admin(username: str, password: str):
-    """Verify admin credentials"""
+    """Verify admin credentials.
+
+    Look up by username only, then check the password against the stored hash.
+    Supports both bcrypt and legacy unsalted-SHA-256 hashes; legacy hashes are
+    transparently rehashed to bcrypt on successful login.
+    """
     conn = get_connection()
     if not USE_POSTGRES:
         conn.row_factory = dict_factory
     cursor = conn.cursor()
-    
-    hashed = hash_password(password)
-    
+
     if USE_POSTGRES:
         cursor.execute('''
-            SELECT id, username, email, coop_id, is_superadmin
-            FROM admin_users WHERE username = %s AND password_hash = %s
-        ''', (username, hashed))
+            SELECT id, username, email, password_hash, coop_id, is_superadmin
+            FROM admin_users WHERE username = %s
+        ''', (username,))
         row = cursor.fetchone()
-        if row:
-            result = {
-                'id': row[0],
-                'username': row[1],
-                'email': row[2],
-                'coop_id': row[3],
-                'is_superadmin': row[4]
-            }
-        else:
-            result = None
+        if row is None:
+            conn.close()
+            return None
+        admin_id, uname, email, stored_hash, coop_id, is_superadmin = row
     else:
         cursor.execute('''
-            SELECT id, username, email, coop_id, is_superadmin
-            FROM admin_users WHERE username = ? AND password_hash = ?
-        ''', (username, hashed))
-        result = cursor.fetchone()
-    
+            SELECT id, username, email, password_hash, coop_id, is_superadmin
+            FROM admin_users WHERE username = ?
+        ''', (username,))
+        row = cursor.fetchone()
+        if row is None:
+            conn.close()
+            return None
+        admin_id = row['id']
+        uname = row['username']
+        email = row['email']
+        stored_hash = row['password_hash']
+        coop_id = row['coop_id']
+        is_superadmin = row['is_superadmin']
+
     conn.close()
-    return result
+
+    if not _verify_password(password, stored_hash):
+        return None
+
+    # Transparently upgrade legacy SHA-256 hashes to bcrypt on successful login
+    if _is_legacy_hash(stored_hash):
+        _rehash_legacy(admin_id, password)
+
+    return {
+        'id': admin_id,
+        'username': uname,
+        'email': email,
+        'coop_id': coop_id,
+        'is_superadmin': is_superadmin,
+    }
 
 def create_coop_admin(email: str, coop_id: int) -> str:
     """Create a co-op admin user with email as username and return temporary password"""
