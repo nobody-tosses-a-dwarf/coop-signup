@@ -598,22 +598,28 @@ async def submit_signup(request: Request, slug: str,
     # Validate inputs
     if not validation.validate_email(email):
         raise HTTPException(status_code=400, detail="Invalid email address")
-    
+
     if not validation.validate_phone(phone):
         raise HTTPException(status_code=400, detail="Invalid phone number")
-    
+
     if not validation.validate_zip(zip):
         raise HTTPException(status_code=400, detail="Invalid ZIP code")
-    
+
     if state not in validation.US_STATES:
         raise HTTPException(status_code=400, detail="Invalid state")
-    
+
     if payment_plan not in ['full', 'installments', 'later']:
         raise HTTPException(status_code=400, detail="Invalid payment plan")
-    
+
+    # Verify the membership type belongs to this co-op
+    membership_types = db.get_membership_types(coop['id'])
+    selected_type = next((t for t in membership_types if t['id'] == membership_type_id), None)
+    if not selected_type:
+        raise HTTPException(status_code=400, detail="Invalid membership type for this co-op")
+
     # Checkbox fields: present in form data when checked, absent when not.
     newsletter_opt_in = newsletter is not None
-    
+
     # Verify Stripe payment if applicable
     stripe_payment_id = None
     equity_paid = 0.0
@@ -622,6 +628,11 @@ async def submit_signup(request: Request, slug: str,
     if STRIPE_SECRET_KEY and payment_plan in ('full', 'installments'):
         if not payment_intent_id:
             raise HTTPException(status_code=400, detail="Payment is required to complete signup")
+
+        # Idempotency: reject if this PaymentIntent was already used to create a member
+        if db.member_exists_for_payment(coop['id'], payment_intent_id):
+            raise HTTPException(status_code=400, detail="This payment has already been used to complete a signup")
+
         try:
             stripe_account = coop.get('stripe_account_id')
             if stripe_account:
@@ -634,6 +645,20 @@ async def submit_signup(request: Request, slug: str,
             raise HTTPException(status_code=400, detail="Payment was not completed")
         if intent.metadata.get('coop_slug') != slug:
             raise HTTPException(status_code=400, detail="Payment does not match this co-op")
+        if intent.metadata.get('membership_type_id') != str(membership_type_id):
+            raise HTTPException(status_code=400, detail="Payment does not match selected membership type")
+        if intent.metadata.get('payment_plan') != payment_plan:
+            raise HTTPException(status_code=400, detail="Payment does not match selected payment plan")
+
+        # Recompute the expected charge from the membership type and verify it matches
+        if payment_plan == 'full':
+            expected_cents = int(round(float(selected_type['equity_amount']) * 100))
+        else:  # installments
+            per_installment = float(selected_type['equity_amount']) / int(selected_type['installment_count'])
+            expected_cents = int(round(per_installment * 100))
+        if intent.amount != expected_cents:
+            raise HTTPException(status_code=400, detail="Payment amount does not match selected membership")
+
         stripe_payment_id = intent.id
         equity_paid = intent.amount / 100.0
         from datetime import timezone
@@ -744,6 +769,7 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
         "embed_code": embed_code,
         "base_domain": base_domain,
         "session": session_data,
+        "states": validation.US_STATES,
         "stripe_configured": bool(STRIPE_SECRET_KEY),
         "stripe_charges_enabled": stripe_charges_enabled,
         "stripe_just_connected": stripe_just_connected,
@@ -900,6 +926,33 @@ async def update_agreement(request: Request, slug: str,
         return RedirectResponse(f"/{slug}/admin", status_code=302)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error updating agreement: {str(e)}")
+
+@app.post("/{slug}/admin/update-basic-email")
+async def update_basic_email(request: Request, slug: str,
+                              contact_email: str = Form(''),
+                              send_member_emails: Optional[str] = Form(None),
+                              session_data: dict = Depends(require_auth)):
+    """Update reply-to address and send toggle only, preserving advanced settings"""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+    try:
+        db.update_coop_email_settings(
+            coop['id'],
+            contact_email.strip() or None,
+            send_member_emails is not None,
+            coop.get('member_email_subject'),
+            coop.get('member_email_body'),
+            coop.get('mailchimp_api_key'),
+            coop.get('mailchimp_audience_id'),
+        )
+        return RedirectResponse(f"/{slug}/admin", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
+
 
 @app.post("/{slug}/admin/update-email-settings")
 async def update_email_settings(request: Request, slug: str,
