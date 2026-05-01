@@ -11,10 +11,63 @@ from typing import Optional
 DATABASE_URL = os.getenv('DATABASE_URL')
 USE_POSTGRES = DATABASE_URL is not None
 
+# Postgres connection pool (lazy-initialized on first use)
+DB_POOL_MIN = int(os.getenv('DB_POOL_MIN', '2'))
+DB_POOL_MAX = int(os.getenv('DB_POOL_MAX', '10'))
+_pg_pool = None
+
+
+def _get_pool():
+    """Lazily build the Postgres connection pool on first use."""
+    global _pg_pool
+    if _pg_pool is None:
+        from psycopg_pool import ConnectionPool
+        _pg_pool = ConnectionPool(
+            DATABASE_URL,
+            min_size=DB_POOL_MIN,
+            max_size=DB_POOL_MAX,
+            open=True,
+        )
+    return _pg_pool
+
+
+class _PooledConn:
+    """Wraps a pooled psycopg connection so .close() returns it to the pool
+    rather than tearing down the underlying socket. Delegates everything else
+    (cursor, commit, rollback, etc.) to the wrapped connection.
+    """
+    def __init__(self, pool, conn):
+        self._pool = pool
+        self._conn = conn
+
+    def __getattr__(self, name):
+        # Delegate any attribute we don't define ourselves to the real connection
+        return getattr(self._conn, name)
+
+    def close(self):
+        if self._conn is not None:
+            self._pool.putconn(self._conn)
+            self._conn = None
+
+    def __del__(self):
+        # Safety net: if a caller forgets to .close() (e.g. an exception
+        # bypassed cleanup), still return the connection on garbage collection
+        try:
+            self.close()
+        except Exception:
+            pass
+
+
 def get_connection():
-    """Get database connection based on environment"""
+    """Get a database connection.
+
+    For Postgres, borrows from a process-wide pool; the returned object's
+    .close() returns the connection to the pool. For SQLite, opens a fresh
+    connection per call (no pooling — SQLite is dev-only).
+    """
     if USE_POSTGRES:
-        return psycopg.connect(DATABASE_URL)
+        pool = _get_pool()
+        return _PooledConn(pool, pool.getconn())
     else:
         return sqlite3.connect('coops.db', check_same_thread=False)
 
