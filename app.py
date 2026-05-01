@@ -1091,6 +1091,72 @@ async def update_email_settings(request: Request, slug: str,
         raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
 
 
+@app.get("/{slug}/admin/members/{member_id}/payments", response_class=HTMLResponse)
+async def member_payments_page(request: Request, slug: str, member_id: int,
+                               session_data: dict = Depends(require_auth)):
+    """Payment history and recording page for a single member."""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    member = db.get_member_by_id(member_id, coop['id'])
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    payments = db.get_member_payments(member_id, coop['id'])
+    total_paid = sum(float(p['amount']) for p in payments)
+
+    return templates.TemplateResponse("member_payments.html", {
+        "request": request,
+        "coop": coop,
+        "member": member,
+        "payments": payments,
+        "total_paid": total_paid,
+        "today": datetime.now().strftime('%Y-%m-%d'),
+    })
+
+
+@app.post("/{slug}/admin/members/{member_id}/payments/add")
+async def add_member_payment(request: Request, slug: str, member_id: int,
+                             amount: float = Form(...),
+                             payment_date: str = Form(...),
+                             method: str = Form(''),
+                             notes: str = Form(''),
+                             session_data: dict = Depends(require_auth),
+                             _csrf: None = Depends(check_csrf)):
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+
+    db.add_member_payment(member_id, coop['id'], amount, payment_date, method, notes)
+    return RedirectResponse(f"/{slug}/admin/members/{member_id}/payments", status_code=302)
+
+
+@app.post("/{slug}/admin/members/{member_id}/payments/{payment_id}/delete")
+async def delete_member_payment(request: Request, slug: str, member_id: int, payment_id: int,
+                                session_data: dict = Depends(require_auth),
+                                _csrf: None = Depends(check_csrf)):
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not session_data.get('is_superadmin'):
+        if session_data.get('coop_id') != coop['id']:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    deleted = db.delete_member_payment(payment_id, coop['id'])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+    return RedirectResponse(f"/{slug}/admin/members/{member_id}/payments", status_code=302)
+
+
 @app.get("/{slug}/admin/export")
 async def export_members(request: Request, slug: str, fmt: str = 'txt', session_data: dict = Depends(require_auth)):
     """Export members to CoPOS format (txt or xlsx)"""

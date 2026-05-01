@@ -565,6 +565,31 @@ def init_db():
         )
     ''')
     
+    # Manual payment records (cash/check payments recorded by admin)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS member_payments (
+            id SERIAL PRIMARY KEY,
+            member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+            coop_id INTEGER NOT NULL REFERENCES coops(id) ON DELETE CASCADE,
+            amount DECIMAL(10,2) NOT NULL,
+            payment_date DATE NOT NULL,
+            method TEXT,
+            notes TEXT,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS member_payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+            coop_id INTEGER NOT NULL REFERENCES coops(id) ON DELETE CASCADE,
+            amount REAL NOT NULL,
+            payment_date DATE NOT NULL,
+            method TEXT,
+            notes TEXT,
+            recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Stripe disputes table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS stripe_disputes (
@@ -1643,3 +1668,134 @@ def get_open_dispute_count(coop_id: int) -> int:
         count = row['COUNT(*)'] if row else 0
     conn.close()
     return count
+
+
+def get_member_by_id(member_id: int, coop_id: int):
+    """Get a single member record (scoped to coop)."""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT m.id, m.member_number, m.first_name, m.last_name, m.email,
+                   m.payment_plan, m.total_equity, m.equity_paid, m.coop_id,
+                   mt.name AS membership_type_name
+            FROM members m
+            LEFT JOIN membership_types mt ON m.membership_type_id = mt.id
+            WHERE m.id = %s AND m.coop_id = %s
+        ''', (member_id, coop_id))
+        row = cursor.fetchone()
+        result = {
+            'id': row[0], 'member_number': row[1], 'first_name': row[2],
+            'last_name': row[3], 'email': row[4], 'payment_plan': row[5],
+            'total_equity': row[6], 'equity_paid': row[7], 'coop_id': row[8],
+            'membership_type_name': row[9],
+        } if row else None
+    else:
+        cursor.execute('''
+            SELECT m.id, m.member_number, m.first_name, m.last_name, m.email,
+                   m.payment_plan, m.total_equity, m.equity_paid, m.coop_id,
+                   mt.name AS membership_type_name
+            FROM members m
+            LEFT JOIN membership_types mt ON m.membership_type_id = mt.id
+            WHERE m.id = ? AND m.coop_id = ?
+        ''', (member_id, coop_id))
+        result = cursor.fetchone()
+    conn.close()
+    return result
+
+
+def get_member_payments(member_id: int, coop_id: int) -> list:
+    """Get all manually recorded payments for a member, newest first."""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT id, amount, payment_date, method, notes, recorded_at
+            FROM member_payments WHERE member_id = %s AND coop_id = %s
+            ORDER BY payment_date DESC, recorded_at DESC
+        ''', (member_id, coop_id))
+        rows = cursor.fetchall()
+        results = [{'id': r[0], 'amount': r[1], 'payment_date': r[2],
+                    'method': r[3], 'notes': r[4], 'recorded_at': r[5]} for r in rows]
+    else:
+        cursor.execute('''
+            SELECT id, amount, payment_date, method, notes, recorded_at
+            FROM member_payments WHERE member_id = ? AND coop_id = ?
+            ORDER BY payment_date DESC, recorded_at DESC
+        ''', (member_id, coop_id))
+        results = cursor.fetchall()
+    conn.close()
+    return results
+
+
+def add_member_payment(member_id: int, coop_id: int, amount: float,
+                       payment_date: str, method: str, notes: str):
+    """Record a manual payment and update the member's equity_paid total."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO member_payments (member_id, coop_id, amount, payment_date, method, notes)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (member_id, coop_id, amount, payment_date, method or None, notes or None))
+        cursor.execute(
+            'UPDATE members SET equity_paid = equity_paid + %s WHERE id = %s AND coop_id = %s',
+            (amount, member_id, coop_id)
+        )
+    else:
+        cursor.execute('''
+            INSERT INTO member_payments (member_id, coop_id, amount, payment_date, method, notes)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (member_id, coop_id, amount, payment_date, method or None, notes or None))
+        cursor.execute(
+            'UPDATE members SET equity_paid = equity_paid + ? WHERE id = ? AND coop_id = ?',
+            (amount, member_id, coop_id)
+        )
+    conn.commit()
+    conn.close()
+
+
+def delete_member_payment(payment_id: int, coop_id: int) -> bool:
+    """Delete a manual payment record and reverse the equity_paid update."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute(
+            'SELECT member_id, amount FROM member_payments WHERE id = %s AND coop_id = %s',
+            (payment_id, coop_id)
+        )
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False
+        member_id, amount = row[0], row[1]
+        cursor.execute('DELETE FROM member_payments WHERE id = %s AND coop_id = %s',
+                       (payment_id, coop_id))
+        cursor.execute(
+            'UPDATE members SET equity_paid = equity_paid - %s WHERE id = %s AND coop_id = %s',
+            (amount, member_id, coop_id)
+        )
+    else:
+        cursor.execute(
+            'SELECT member_id, amount FROM member_payments WHERE id = ? AND coop_id = ?',
+            (payment_id, coop_id)
+        )
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            return False
+        member_id = row['member_id'] if isinstance(row, dict) else row[0]
+        amount = row['amount'] if isinstance(row, dict) else row[1]
+        cursor.execute('DELETE FROM member_payments WHERE id = ? AND coop_id = ?',
+                       (payment_id, coop_id))
+        cursor.execute(
+            'UPDATE members SET equity_paid = equity_paid - ? WHERE id = ? AND coop_id = ?',
+            (amount, member_id, coop_id)
+        )
+    conn.commit()
+    conn.close()
+    return True

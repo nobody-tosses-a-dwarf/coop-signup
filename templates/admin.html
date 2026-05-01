@@ -515,6 +515,10 @@
                         <td>{% if member.newsletter %}Yes{% else %}No{% endif %}</td>
                         <td>{{ member.signed_up_at.strftime('%Y-%m-%d') if member.signed_up_at.strftime is defined else (member.signed_up_at|string)[:10] }}</td>
                         <td style="white-space: nowrap;">
+                            {% if member.payment_plan in ('later', 'installments') %}
+                            <a href="/{{ coop.slug }}/admin/members/{{ member.id }}/payments"
+                               class="btn btn-sm" style="background:#5a7d9a;">Payments</a>
+                            {% endif %}
                             <button type="button" class="btn btn-sm"
                                 onclick="openEditMember(this)"
                                 data-id="{{ member.id }}"
