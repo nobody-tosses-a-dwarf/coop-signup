@@ -8,6 +8,7 @@ import copos_export
 import validation
 import email_service
 import mailchimp_service
+import csrf as csrf_module
 import stripe as stripe_lib
 from pydantic import BaseModel
 import qrcode
@@ -23,6 +24,22 @@ except ImportError:
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
+
+@app.middleware("http")
+async def attach_csrf_token(request: Request, call_next):
+    session_cookie = request.cookies.get('session', '')
+    request.state.csrf_token = csrf_module.generate_csrf_token(session_cookie)
+    return await call_next(request)
+
+
+async def check_csrf(request: Request, csrf_token: str = Form(...)):
+    session_cookie = request.cookies.get('session', '')
+    if not csrf_module.validate_csrf_token(csrf_token, session_cookie):
+        raise HTTPException(
+            status_code=403,
+            detail="Invalid or expired form token. Please reload the page and try again."
+        )
 
 # Stripe
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
@@ -95,7 +112,8 @@ async def login_page(request: Request):
     })
 
 @app.post("/login")
-async def login(request: Request, username: str = Form(...), password: str = Form(...)):
+async def login(request: Request, username: str = Form(...), password: str = Form(...),
+                _csrf: None = Depends(check_csrf)):
     """Process login"""
     user = db.verify_admin(username, password)
     
@@ -154,7 +172,8 @@ async def forgot_password_page(request: Request):
     })
 
 @app.post("/forgot-password")
-async def forgot_password(request: Request, email: str = Form(...)):
+async def forgot_password(request: Request, email: str = Form(...),
+                          _csrf: None = Depends(check_csrf)):
     """Request password reset"""
     token = db.create_password_reset_token(email)
     
@@ -188,9 +207,10 @@ async def reset_password_page(request: Request, token: str):
     })
 
 @app.post("/reset-password")
-async def reset_password(request: Request, token: str = Form(...), 
-                        new_password: str = Form(...), 
-                        confirm_password: str = Form(...)):
+async def reset_password(request: Request, token: str = Form(...),
+                         new_password: str = Form(...),
+                         confirm_password: str = Form(...),
+                         _csrf: None = Depends(check_csrf)):
     """Process password reset"""
     admin = db.verify_reset_token(token)
     
@@ -236,11 +256,12 @@ async def change_password_page(request: Request, session_data: dict = Depends(re
     })
 
 @app.post("/change-password")
-async def change_password(request: Request, 
-                         current_password: str = Form(...),
-                         new_password: str = Form(...),
-                         confirm_password: str = Form(...),
-                         session_data: dict = Depends(require_auth)):
+async def change_password(request: Request,
+                          current_password: str = Form(...),
+                          new_password: str = Form(...),
+                          confirm_password: str = Form(...),
+                          session_data: dict = Depends(require_auth),
+                          _csrf: None = Depends(check_csrf)):
     """Process password change"""
     # Verify current password
     user = db.verify_admin(session_data['username'], current_password)
@@ -296,9 +317,10 @@ async def superadmin_page(request: Request, session_data: dict = Depends(require
 
 @app.post("/superadmin/update-email-settings")
 async def superadmin_update_email_settings(request: Request,
-                                            admin_email_subject: str = Form(''),
-                                            admin_email_body: str = Form(''),
-                                            session_data: dict = Depends(require_superadmin)):
+                                           admin_email_subject: str = Form(''),
+                                           admin_email_body: str = Form(''),
+                                           session_data: dict = Depends(require_superadmin),
+                                           _csrf: None = Depends(check_csrf)):
     """Update the admin welcome email template"""
     try:
         db.update_system_setting('admin_welcome_subject', admin_email_subject.strip() or None)
@@ -309,9 +331,10 @@ async def superadmin_update_email_settings(request: Request,
 
 @app.post("/superadmin/create-coop")
 async def create_coop(request: Request,
-                     name: str = Form(...),
-                     slug: str = Form(...),
-                     session_data: dict = Depends(require_superadmin)):
+                      name: str = Form(...),
+                      slug: str = Form(...),
+                      session_data: dict = Depends(require_superadmin),
+                      _csrf: None = Depends(check_csrf)):
     """Create a new co-op"""
     # Normalize slug: lowercase, replace spaces with hyphens
     slug = slug.lower().strip().replace(' ', '-')
@@ -328,9 +351,10 @@ async def create_coop(request: Request,
 
 @app.post("/superadmin/create-admin")
 async def create_admin(request: Request,
-                      email: str = Form(...),
-                      coop_id: int = Form(...),
-                      session_data: dict = Depends(require_superadmin)):
+                       email: str = Form(...),
+                       coop_id: int = Form(...),
+                       session_data: dict = Depends(require_superadmin),
+                       _csrf: None = Depends(check_csrf)):
     """Create a new co-op admin"""
     # Validate email
     if not validation.validate_email(email):
@@ -356,9 +380,10 @@ async def create_admin(request: Request,
 
 @app.post("/superadmin/delete-coop/{coop_id}")
 async def delete_coop(request: Request,
-                     coop_id: int,
-                     password: str = Form(...),
-                     session_data: dict = Depends(require_superadmin)):
+                      coop_id: int,
+                      password: str = Form(...),
+                      session_data: dict = Depends(require_superadmin),
+                      _csrf: None = Depends(check_csrf)):
     """Delete a co-op and all related records (requires password confirmation)."""
     # Verify superadmin password
     verified = db.verify_admin(session_data['username'], password)
@@ -378,7 +403,8 @@ async def delete_coop(request: Request,
 @app.post("/superadmin/delete-admin/{admin_id}")
 async def delete_admin(request: Request,
                        admin_id: int,
-                       session_data: dict = Depends(require_superadmin)):
+                       session_data: dict = Depends(require_superadmin),
+                       _csrf: None = Depends(check_csrf)):
     """Delete an admin user"""
     try:
         conn = db.get_connection()
@@ -499,7 +525,8 @@ async def create_payment_intent(slug: str, body: PaymentIntentRequest):
 
 
 @app.post("/{slug}/admin/stripe-connect")
-async def stripe_connect(request: Request, slug: str, session_data: dict = Depends(require_auth)):
+async def stripe_connect(request: Request, slug: str, session_data: dict = Depends(require_auth),
+                         _csrf: None = Depends(check_csrf)):
     """Start Stripe Connect Express onboarding for a co-op"""
     if not STRIPE_SECRET_KEY:
         raise HTTPException(status_code=400, detail="Stripe is not configured on this platform")
@@ -557,7 +584,8 @@ async def stripe_onboard_refresh(request: Request, slug: str, session_data: dict
 
 
 @app.post("/{slug}/admin/stripe-disconnect")
-async def stripe_disconnect(request: Request, slug: str, session_data: dict = Depends(require_auth)):
+async def stripe_disconnect(request: Request, slug: str, session_data: dict = Depends(require_auth),
+                            _csrf: None = Depends(check_csrf)):
     """Disconnect the Stripe account from a co-op"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -573,7 +601,8 @@ async def stripe_disconnect(request: Request, slug: str, session_data: dict = De
 
 @app.post("/{slug}/submit")
 async def submit_signup(request: Request, slug: str,
-                       membership_type_id: int = Form(...),
+                        _csrf: None = Depends(check_csrf),
+                        membership_type_id: int = Form(...),
                        first_name: str = Form(...),
                        last_name: str = Form(...),
                        email: str = Form(...),
@@ -777,13 +806,14 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
 
 @app.post("/{slug}/admin/membership-types/create")
 async def create_membership_type(request: Request, slug: str,
-                                name: str = Form(...),
-                                equity_amount: float = Form(...),
-                                dues_amount: float = Form(0),
-                                signup_fee: float = Form(0),
-                                allows_installments: Optional[str] = Form(None),
-                                installment_count: int = Form(4),
-                                session_data: dict = Depends(require_auth)):
+                                 name: str = Form(...),
+                                 equity_amount: float = Form(...),
+                                 dues_amount: float = Form(0),
+                                 signup_fee: float = Form(0),
+                                 allows_installments: Optional[str] = Form(None),
+                                 installment_count: int = Form(4),
+                                 session_data: dict = Depends(require_auth),
+                                 _csrf: None = Depends(check_csrf)):
     """Create a membership type"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -811,7 +841,8 @@ async def edit_membership_type(request: Request, slug: str, type_id: int,
                                signup_fee: float = Form(0),
                                allows_installments: Optional[str] = Form(None),
                                installment_count: int = Form(4),
-                               session_data: dict = Depends(require_auth)):
+                               session_data: dict = Depends(require_auth),
+                               _csrf: None = Depends(check_csrf)):
     """Update a membership type"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -832,7 +863,8 @@ async def edit_membership_type(request: Request, slug: str, type_id: int,
 
 @app.post("/{slug}/admin/membership-types/{type_id}/delete")
 async def delete_membership_type(request: Request, slug: str, type_id: int,
-                                session_data: dict = Depends(require_auth)):
+                                 session_data: dict = Depends(require_auth),
+                                 _csrf: None = Depends(check_csrf)):
     """Delete a membership type"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -861,7 +893,8 @@ async def edit_member(request: Request, slug: str, member_id: int,
                       zip: str = Form(...),
                       payment_plan: str = Form(...),
                       membership_type_id: int = Form(...),
-                      session_data: dict = Depends(require_auth)):
+                      session_data: dict = Depends(require_auth),
+                      _csrf: None = Depends(check_csrf)):
     """Edit a member's details"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -887,7 +920,8 @@ async def edit_member(request: Request, slug: str, member_id: int,
 
 @app.post("/{slug}/admin/members/{member_id}/delete")
 async def delete_member_route(request: Request, slug: str, member_id: int,
-                              session_data: dict = Depends(require_auth)):
+                              session_data: dict = Depends(require_auth),
+                              _csrf: None = Depends(check_csrf)):
     """Delete a member (admins of this co-op, or superadmin)."""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -909,8 +943,9 @@ async def delete_member_route(request: Request, slug: str, member_id: int,
 
 @app.post("/{slug}/admin/update-agreement")
 async def update_agreement(request: Request, slug: str,
-                          membership_agreement: str = Form(...),
-                          session_data: dict = Depends(require_auth)):
+                           membership_agreement: str = Form(...),
+                           session_data: dict = Depends(require_auth),
+                           _csrf: None = Depends(check_csrf)):
     """Update membership agreement"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -929,9 +964,10 @@ async def update_agreement(request: Request, slug: str,
 
 @app.post("/{slug}/admin/update-basic-email")
 async def update_basic_email(request: Request, slug: str,
-                              contact_email: str = Form(''),
-                              send_member_emails: Optional[str] = Form(None),
-                              session_data: dict = Depends(require_auth)):
+                             contact_email: str = Form(''),
+                             send_member_emails: Optional[str] = Form(None),
+                             session_data: dict = Depends(require_auth),
+                             _csrf: None = Depends(check_csrf)):
     """Update reply-to address and send toggle only, preserving advanced settings"""
     coop = db.get_coop_by_slug(slug)
     if not coop:
@@ -956,13 +992,14 @@ async def update_basic_email(request: Request, slug: str,
 
 @app.post("/{slug}/admin/update-email-settings")
 async def update_email_settings(request: Request, slug: str,
-                                 contact_email: str = Form(''),
-                                 send_member_emails: Optional[str] = Form(None),
-                                 member_email_subject: str = Form(''),
-                                 member_email_body: str = Form(''),
-                                 mailchimp_api_key: str = Form(''),
-                                 mailchimp_audience_id: str = Form(''),
-                                 session_data: dict = Depends(require_auth)):
+                                contact_email: str = Form(''),
+                                send_member_emails: Optional[str] = Form(None),
+                                member_email_subject: str = Form(''),
+                                member_email_body: str = Form(''),
+                                mailchimp_api_key: str = Form(''),
+                                mailchimp_audience_id: str = Form(''),
+                                session_data: dict = Depends(require_auth),
+                                _csrf: None = Depends(check_csrf)):
     """Update email settings for a co-op"""
     coop = db.get_coop_by_slug(slug)
     if not coop:

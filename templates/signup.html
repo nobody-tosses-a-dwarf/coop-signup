@@ -264,6 +264,7 @@
         {% endif %}
         
         <form method="POST" action="/{{ coop.slug }}/submit" id="signupForm">
+            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
             <div class="form-section">
                 <h2>Membership Type</h2>
                 <div class="membership-types">

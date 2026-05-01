@@ -451,6 +451,7 @@
         <div class="stripe-callout" id="stripeSection">
             <p>&#9888;&nbsp; <strong>Payments not active.</strong> Members are signing up without paying. Connect Stripe so your co-op collects equity at signup.</p>
             <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <button type="submit" class="stripe-callout-btn">Connect Stripe</button>
             </form>
         </div>
@@ -521,6 +522,7 @@
                                 data-member-number="{{ member.member_number }}">Edit</button>
                             <form method="POST" action="/{{ coop.slug }}/admin/members/{{ member.id }}/delete" style="display:inline;"
                                   onsubmit="return confirm('Delete member #{{ member.member_number }} - {{ member.first_name }} {{ member.last_name }}? This cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                                 <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                             </form>
                         </td>
@@ -567,12 +569,14 @@
                         <button type="button" class="btn btn-sm" onclick="toggleEditForm('edit-{{ type.id }}')">Edit</button>
                         <form method="POST" action="/{{ coop.slug }}/admin/membership-types/{{ type.id }}/delete" style="display: inline;"
                               onsubmit="return confirm('Delete this membership type? This cannot be undone.');">
+                            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
                         </form>
                     </div>
                 </div>
                 <div id="edit-{{ type.id }}" style="display: none; padding: 20px; background: #f0f7f0; border-radius: 5px; margin-bottom: 10px; border: 1px solid #c3e6cb;">
                     <form method="POST" action="/{{ coop.slug }}/admin/membership-types/{{ type.id }}/edit">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                         <div class="form-grid">
                             <div class="form-group">
                                 <label>Membership Name *</label>
@@ -616,6 +620,7 @@
             <div class="collapsible" id="addTypeToggle">Add New Membership Type</div>
             <div class="collapsible-content" id="addTypeForm">
                 <form method="POST" action="/{{ coop.slug }}/admin/membership-types/create" style="padding: 20px; background: white; border-radius: 5px;">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <div class="form-grid">
                         <div class="form-group">
                             <label>Membership Name *</label>
@@ -675,11 +680,13 @@
                         </p>
                     </div>
                     <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect" style="margin-bottom:16px;">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                         <button type="submit" class="btn" style="background:#635bff;">Finish Stripe Setup</button>
                     </form>
                     {% endif %}
                     <form method="POST" action="/{{ coop.slug }}/admin/stripe-disconnect"
                           onsubmit="return confirm('Disconnect Stripe? Members can still sign up but will not be charged until you reconnect.');">
+                        <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                         <button type="submit" class="btn btn-danger btn-sm">Disconnect Stripe Account</button>
                     </form>
                 {% else %}
@@ -697,6 +704,7 @@
                     <p style="margin-top:10px; color:#777;">The whole process takes about 5 minutes. You can also start and come back later.</p>
                 </div>
                 <form method="POST" action="/{{ coop.slug }}/admin/stripe-connect" style="margin-bottom:14px;">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <button type="submit" class="btn" style="background:#635bff;">Connect Stripe Account</button>
                 </form>
                 <p style="font-size:12px; color:#999;">
@@ -717,6 +725,7 @@
                 <h2>Email</h2>
             </div>
             <form method="POST" action="/{{ coop.slug }}/admin/update-basic-email">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <div class="form-group" style="margin-bottom: 20px;">
                     <label>Reply-To Email Address</label>
                     <input type="email" name="contact_email" value="{{ coop.contact_email or '' }}"
@@ -751,6 +760,7 @@
                 <div class="collapsible" id="emailAdvToggle">Custom Email Template &amp; Mailchimp</div>
                 <div class="collapsible-content" id="emailAdvContent">
                 <form method="POST" action="/{{ coop.slug }}/admin/update-email-settings">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <input type="hidden" name="contact_email" value="{{ coop.contact_email or '' }}">
                     <input type="hidden" name="send_member_emails" value="{% if coop.send_member_emails is not false and coop.send_member_emails != 0 %}on{% endif %}">
 
@@ -812,6 +822,7 @@
                 <div class="collapsible" id="agreementToggle">Membership Agreement</div>
                 <div class="collapsible-content" id="agreementContent">
                 <form method="POST" action="/{{ coop.slug }}/admin/update-agreement">
+                    <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <div class="form-group">
                         <label>Agreement Text</label>
                         <textarea name="membership_agreement" placeholder="Enter your membership agreement text here. Members will be required to agree to this before signing up.">{{ coop.membership_agreement or '' }}</textarea>
@@ -922,6 +933,7 @@
         <div style="background:white; margin:40px auto; padding:30px; border-radius:8px; max-width:700px; box-shadow:0 4px 20px rgba(0,0,0,0.3);">
             <h3 style="margin-bottom:20px; color:#333;">Edit Member <span id="editMemberLabel" style="color:#2c5f2d;"></span></h3>
             <form id="editMemberForm" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <div class="form-grid">
                     <div class="form-group">
                         <label>First Name *</label>

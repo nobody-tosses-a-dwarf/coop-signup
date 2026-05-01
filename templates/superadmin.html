@@ -216,6 +216,7 @@
         <div class="section">
             <h2>Create New Co-op</h2>
             <form method="POST" action="/superadmin/create-coop">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Co-op Name *</label>
@@ -269,6 +270,7 @@
         <div class="section">
             <h2>Create Co-op Admin User</h2>
             <form method="POST" action="/superadmin/create-admin">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Email Address *</label>
@@ -313,8 +315,9 @@
                         <td>{{ admin.email }}</td>
                         <td>{{ admin.coop_name }}</td>
                         <td>
-                            <form method="POST" action="/superadmin/delete-admin/{{ admin.id }}" style="display: inline;" 
+                            <form method="POST" action="/superadmin/delete-admin/{{ admin.id }}" style="display: inline;"
                                   onsubmit="return confirm('Delete admin user {{ admin.email }}? This cannot be undone.');">
+                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                                 <button type="submit" class="btn btn-danger">Delete</button>
                             </form>
                         </td>
@@ -332,6 +335,7 @@
                 This email is sent to new co-op admins when you create their account. Leave fields blank to use the built-in default.
             </p>
             <form method="POST" action="/superadmin/update-email-settings">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label>Subject</label>
                     <input type="text" name="admin_email_subject"
@@ -373,6 +377,7 @@
             </div>
             
             <form id="deleteForm" method="POST">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                 <div class="form-group">
                     <label>Enter your superadmin password to confirm:</label>
                     <input type="password" name="password" id="deletePassword" required autofocus 
