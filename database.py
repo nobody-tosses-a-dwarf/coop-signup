@@ -102,21 +102,27 @@ def migrate_db():
                 END $$;
             """)
             
-            # Add password reset columns
+            # Add password reset + timezone columns to admin_users
             cursor.execute("""
-                DO $$ 
+                DO $$
                 BEGIN
                     IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
+                        SELECT 1 FROM information_schema.columns
                         WHERE table_name='admin_users' AND column_name='password_reset_token'
                     ) THEN
                         ALTER TABLE admin_users ADD COLUMN password_reset_token TEXT;
                     END IF;
                     IF NOT EXISTS (
-                        SELECT 1 FROM information_schema.columns 
+                        SELECT 1 FROM information_schema.columns
                         WHERE table_name='admin_users' AND column_name='password_reset_expires'
                     ) THEN
                         ALTER TABLE admin_users ADD COLUMN password_reset_expires TIMESTAMP;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='admin_users' AND column_name='timezone'
+                    ) THEN
+                        ALTER TABLE admin_users ADD COLUMN timezone TEXT;
                     END IF;
                 END $$;
             """)
@@ -364,6 +370,11 @@ def migrate_db():
             
             try:
                 cursor.execute('ALTER TABLE admin_users ADD COLUMN password_reset_expires TIMESTAMP')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE admin_users ADD COLUMN timezone TEXT')
             except:
                 pass
             
@@ -860,17 +871,17 @@ def verify_admin(username: str, password: str):
 
     if USE_POSTGRES:
         cursor.execute('''
-            SELECT id, username, email, password_hash, coop_id, is_superadmin
+            SELECT id, username, email, password_hash, coop_id, is_superadmin, timezone
             FROM admin_users WHERE username = %s
         ''', (username,))
         row = cursor.fetchone()
         if row is None:
             conn.close()
             return None
-        admin_id, uname, email, stored_hash, coop_id, is_superadmin = row
+        admin_id, uname, email, stored_hash, coop_id, is_superadmin, tz = row
     else:
         cursor.execute('''
-            SELECT id, username, email, password_hash, coop_id, is_superadmin
+            SELECT id, username, email, password_hash, coop_id, is_superadmin, timezone
             FROM admin_users WHERE username = ?
         ''', (username,))
         row = cursor.fetchone()
@@ -883,6 +894,7 @@ def verify_admin(username: str, password: str):
         stored_hash = row['password_hash']
         coop_id = row['coop_id']
         is_superadmin = row['is_superadmin']
+        tz = row['timezone']
 
     conn.close()
 
@@ -899,6 +911,7 @@ def verify_admin(username: str, password: str):
         'email': email,
         'coop_id': coop_id,
         'is_superadmin': is_superadmin,
+        'timezone': tz,
     }
 
 def create_coop_admin(email: str, coop_id: int) -> str:
@@ -951,6 +964,17 @@ def change_admin_password(admin_id: int, new_password: str):
         cursor.execute('UPDATE admin_users SET password_hash = ? WHERE id = ?',
                       (hashed, admin_id))
     
+    conn.commit()
+    conn.close()
+
+def update_admin_timezone(admin_id: int, timezone: str):
+    """Store an admin's preferred IANA timezone."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('UPDATE admin_users SET timezone = %s WHERE id = %s', (timezone, admin_id))
+    else:
+        cursor.execute('UPDATE admin_users SET timezone = ? WHERE id = ?', (timezone, admin_id))
     conn.commit()
     conn.close()
 

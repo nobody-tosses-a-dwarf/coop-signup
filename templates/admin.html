@@ -489,7 +489,7 @@
                 <div style="font-size:12px; color:#888; margin-top:8px;">
                     {% if coop.last_exported_at %}
                     <strong>New Members</strong> includes signups after
-                    {{ (coop.last_exported_at|string)[:16] }} UTC
+                    <time data-utc="{{ coop.last_exported_at }}"></time>
                     {% else %}
                     <strong>New Members</strong> will include all {{ total_members }} member{{ 's' if total_members != 1 else '' }} (never exported)
                     {% endif %}
@@ -589,7 +589,7 @@
                 <tbody>
                     {% for row in export_log %}
                     <tr>
-                        <td>{{ (row.exported_at|string)[:16] }}</td>
+                        <td><time data-utc="{{ row.exported_at }}"></time></td>
                         <td>
                             {% if row.export_type == 'full' %}
                             <span class="badge badge-success">Full</span>
@@ -598,7 +598,7 @@
                             {% endif %}
                         </td>
                         <td>{{ row.record_count }}</td>
-                        <td style="color:#888;">{{ (row.since_date|string)[:16] if row.since_date else '—' }}</td>
+                        <td style="color:#888;">{% if row.since_date %}<time data-utc="{{ row.since_date }}"></time>{% else %}—{% endif %}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -1318,6 +1318,25 @@
         }
 
         updateEmbed();
+
+        // Timezone-aware timestamp formatting
+        const ADMIN_TZ = {{ (session.timezone | tojson) if session.timezone else 'null' }};
+        function fmtUtc(utcStr) {
+            if (!utcStr) return '—';
+            const tz = ADMIN_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+            // PostgreSQL returns "YYYY-MM-DD HH:MM:SS" without a trailing Z; add it.
+            const iso = utcStr.toString().replace(' ', 'T').replace(/(\d{2}:\d{2}(:\d{2})?)$/, '$1Z');
+            const d = new Date(iso);
+            if (isNaN(d)) return utcStr;
+            return d.toLocaleString('en-US', {
+                timeZone: tz,
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: 'numeric', minute: '2-digit'
+            });
+        }
+        document.querySelectorAll('time[data-utc]').forEach(el => {
+            el.textContent = fmtUtc(el.dataset.utc);
+        });
     </script>
 </body>
 </html>

@@ -152,7 +152,8 @@ async def login(request: Request, username: str = Form(...), password: str = For
         'user_id': user['id'],
         'username': user['username'],
         'email': user['email'],
-        'is_superadmin': user['is_superadmin']
+        'is_superadmin': user['is_superadmin'],
+        'timezone': user.get('timezone'),
     }
     
     if not user['is_superadmin']:
@@ -275,6 +276,7 @@ async def change_password_page(request: Request, session_data: dict = Depends(re
     return templates.TemplateResponse("change_password.html", {
         "request": request,
         "email": session_data['email'],
+        "current_timezone": session_data.get('timezone'),
         "error": None,
         "success": False
     })
@@ -284,44 +286,63 @@ async def change_password(request: Request,
                           current_password: str = Form(...),
                           new_password: str = Form(...),
                           confirm_password: str = Form(...),
+                          timezone: Optional[str] = Form(None),
                           session_data: dict = Depends(require_auth),
                           _csrf: None = Depends(check_csrf)):
     """Process password change"""
     # Verify current password
     user = db.verify_admin(session_data['username'], current_password)
-    
+
     if not user:
         return templates.TemplateResponse("change_password.html", {
             "request": request,
             "email": session_data['email'],
+            "current_timezone": session_data.get('timezone'),
             "error": "Current password is incorrect",
             "success": False
         })
-    
+
     if new_password != confirm_password:
         return templates.TemplateResponse("change_password.html", {
             "request": request,
             "email": session_data['email'],
+            "current_timezone": session_data.get('timezone'),
             "error": "New passwords do not match",
             "success": False
         })
-    
+
     if len(new_password) < 8:
         return templates.TemplateResponse("change_password.html", {
             "request": request,
             "email": session_data['email'],
+            "current_timezone": session_data.get('timezone'),
             "error": "Password must be at least 8 characters",
             "success": False
         })
-    
+
     db.change_admin_password(session_data['user_id'], new_password)
-    
-    return templates.TemplateResponse("change_password.html", {
+
+    # Save timezone preference and refresh the session cookie
+    new_tz = timezone if timezone else None
+    if new_tz != session_data.get('timezone'):
+        db.update_admin_timezone(session_data['user_id'], new_tz or '')
+        session_data['timezone'] = new_tz
+
+    response = templates.TemplateResponse("change_password.html", {
         "request": request,
         "email": session_data['email'],
+        "current_timezone": new_tz,
         "error": None,
         "success": True
     })
+    response.set_cookie(
+        key="session",
+        value=create_session_cookie(session_data),
+        httponly=True,
+        max_age=86400,
+        samesite='lax'
+    )
+    return response
 
 @app.get("/superadmin", response_class=HTMLResponse)
 async def superadmin_page(request: Request, session_data: dict = Depends(require_superadmin)):
