@@ -9,6 +9,7 @@ import validation
 import email_service
 import mailchimp_service
 import csrf as csrf_module
+import rate_limit
 import stripe as stripe_lib
 from pydantic import BaseModel
 import qrcode
@@ -116,14 +117,34 @@ async def login_page(request: Request):
 async def login(request: Request, username: str = Form(...), password: str = Form(...),
                 _csrf: None = Depends(check_csrf)):
     """Process login"""
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    client_ip = forwarded_for.split(",")[0].strip() if forwarded_for else (
+        request.client.host if request.client else "unknown"
+    )
+    ip_key = f"ip:{client_ip}"
+    user_key = f"user:{username.lower().strip()}"
+
+    if await rate_limit.is_rate_limited(ip_key) or await rate_limit.is_rate_limited(user_key):
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Too many login attempts. Please wait a few minutes and try again."
+        }, status_code=429)
+
+    await rate_limit.record_attempt(ip_key)
+    await rate_limit.record_attempt(user_key)
+
     user = db.verify_admin(username, password)
-    
+
     if not user:
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "Invalid username or password"
         })
     
+    # Successful login — reset the per-username counter so a legit user who
+    # had earlier failures isn't still locked out on their next session.
+    await rate_limit.clear_attempts(user_key)
+
     # Create session
     session_data = {
         'user_id': user['id'],
