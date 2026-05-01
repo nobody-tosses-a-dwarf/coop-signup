@@ -1202,7 +1202,7 @@ async def run_digest(request: Request, period: str = 'daily', key: str = ''):
         members = db.get_members_since(coop_id, cutoff)
         if members:
             try:
-                await email_service.send_digest_email(notif_email, name, period, members)
+                await email_service.send_digest_email(notif_email, name, period, members, coop['slug'])
                 results.append({'coop': name, 'sent': True, 'count': len(members)})
             except Exception as e:
                 results.append({'coop': name, 'sent': False, 'error': str(e)})

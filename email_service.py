@@ -260,8 +260,9 @@ async def send_signup_notification(notification_email: str, coop_name: str,
 
 
 async def send_digest_email(notification_email: str, coop_name: str,
-                            period: str, members: list):
+                            period: str, members: list, slug: str = ''):
     """Send a daily or weekly digest of new signups to the co-op admin."""
+    import os
     period_label = 'Daily' if period == 'daily' else 'Weekly'
     count = len(members)
     subject = f"{period_label} signup report: {count} new member{'s' if count != 1 else ''} — {coop_name}"
@@ -274,6 +275,15 @@ async def send_digest_email(notification_email: str, coop_name: str,
         f"<td style='padding:6px 0;'>{plan_labels.get(m.get('payment_plan',''), m.get('payment_plan',''))}</td></tr>"
         for m in members
     )
+
+    base_domain = os.getenv('BASE_DOMAIN', 'coopsignup.com')
+    dashboard_url = f"https://{base_domain}/{slug}/admin" if slug else ''
+    dashboard_link = (
+        f"<p style='margin-top:24px;'>"
+        f"<a href='{dashboard_url}' style='background:#2c5f2d; color:#fff; padding:10px 20px; "
+        f"border-radius:5px; text-decoration:none; font-size:14px; font-weight:500;'>"
+        f"Open Admin Dashboard</a></p>"
+    ) if dashboard_url else ''
 
     html_content = f"""
 <html><body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
@@ -289,6 +299,7 @@ async def send_digest_email(notification_email: str, coop_name: str,
   </thead>
   <tbody>{rows_html}</tbody>
 </table>
+{dashboard_link}
 <p style="margin-top:20px; font-size:13px; color:#888;">
   This is an automated report from the Co-op Signup System.
 </p>
