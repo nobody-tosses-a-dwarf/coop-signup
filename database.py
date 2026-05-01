@@ -1856,7 +1856,7 @@ def get_open_dispute_count(coop_id: int) -> int:
             (coop_id,)
         )
         row = cursor.fetchone()
-        count = row['COUNT(*)'] if row else 0
+        count = row[0] if row else 0
     conn.close()
     return count
 
