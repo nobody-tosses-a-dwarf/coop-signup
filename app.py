@@ -444,6 +444,96 @@ async def delete_admin(request: Request,
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error deleting admin: {str(e)}")
 
+
+@app.post("/superadmin/impersonate/{admin_id}")
+async def impersonate_admin(request: Request, admin_id: int,
+                            session_data: dict = Depends(require_superadmin),
+                            _csrf: None = Depends(check_csrf)):
+    """Start an impersonation session as a co-op admin."""
+    target = db.get_admin_by_id(admin_id)
+    if not target or target.get('is_superadmin'):
+        raise HTTPException(status_code=404, detail="Admin not found")
+
+    coop_id = target.get('coop_id') if isinstance(target, dict) else target['coop_id']
+    coop = db.get_coop_by_id(coop_id)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+
+    target_email = target.get('email') if isinstance(target, dict) else target['email']
+    db.log_impersonation(
+        superadmin_id=session_data['user_id'],
+        superadmin_email=session_data['email'],
+        target_admin_id=admin_id,
+        target_admin_email=target_email,
+        target_coop_name=coop['name'],
+    )
+
+    impersonated_session = {
+        'user_id': target.get('id') if isinstance(target, dict) else target['id'],
+        'username': target.get('username') if isinstance(target, dict) else target['username'],
+        'email': target_email,
+        'is_superadmin': False,
+        'coop_id': coop['id'],
+        'coop_slug': coop['slug'],
+        '_impersonating': True,
+        '_original_superadmin_id': session_data['user_id'],
+    }
+
+    response = RedirectResponse(f"/{coop['slug']}/admin", status_code=302)
+    response.set_cookie(
+        key="session",
+        value=create_session_cookie(impersonated_session),
+        httponly=True,
+        max_age=86400,
+        samesite='lax',
+    )
+    return response
+
+
+@app.get("/superadmin/exit-impersonation")
+async def exit_impersonation(request: Request):
+    """Restore the superadmin session and return to the superadmin dashboard."""
+    session_data = get_session_data(request)
+    if not session_data or not session_data.get('_impersonating'):
+        return RedirectResponse("/login", status_code=302)
+
+    original_id = session_data.get('_original_superadmin_id')
+    original_admin = db.get_admin_by_id(original_id) if original_id else None
+    if not original_admin:
+        response = RedirectResponse("/login", status_code=302)
+        response.delete_cookie("session")
+        return response
+
+    superadmin_session = {
+        'user_id': original_admin.get('id') if isinstance(original_admin, dict) else original_admin['id'],
+        'username': original_admin.get('username') if isinstance(original_admin, dict) else original_admin['username'],
+        'email': original_admin.get('email') if isinstance(original_admin, dict) else original_admin['email'],
+        'is_superadmin': True,
+    }
+    response = RedirectResponse("/superadmin", status_code=302)
+    response.set_cookie(
+        key="session",
+        value=create_session_cookie(superadmin_session),
+        httponly=True,
+        max_age=86400,
+        samesite='lax',
+    )
+    return response
+
+
+@app.post("/superadmin/coops/{coop_id}/toggle-payments")
+async def toggle_coop_payments(request: Request, coop_id: int,
+                               session_data: dict = Depends(require_superadmin),
+                               _csrf: None = Depends(check_csrf)):
+    """Toggle the payment recording UI on or off for a co-op."""
+    coops = db.get_all_coops()
+    coop = next((c for c in coops if c['id'] == coop_id), None)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    db.update_coop_payments_enabled(coop_id, not coop.get('payments_enabled', True))
+    return RedirectResponse("/superadmin", status_code=302)
+
+
 @app.get("/{slug}", response_class=HTMLResponse)
 async def signup_page(request: Request, slug: str, embed: Optional[str] = None):
     """Member signup page"""

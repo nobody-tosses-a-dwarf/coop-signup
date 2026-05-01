@@ -272,8 +272,25 @@ def migrate_db():
                     ) THEN
                         ALTER TABLE coops ADD COLUMN charges_enabled BOOLEAN DEFAULT FALSE;
                     END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='payments_enabled'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN payments_enabled BOOLEAN DEFAULT TRUE;
+                    END IF;
                 END $$;
             """)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS impersonation_log (
+                    id SERIAL PRIMARY KEY,
+                    superadmin_id INTEGER,
+                    superadmin_email TEXT,
+                    target_admin_id INTEGER,
+                    target_admin_email TEXT,
+                    target_coop_name TEXT,
+                    impersonated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
         else:
             # SQLite migrations (simpler, just try to add columns)
             try:
@@ -377,6 +394,23 @@ def migrate_db():
                 cursor.execute('ALTER TABLE coops ADD COLUMN charges_enabled INTEGER DEFAULT 0')
             except:
                 pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN payments_enabled INTEGER DEFAULT 1')
+            except:
+                pass
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS impersonation_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    superadmin_id INTEGER,
+                    superadmin_email TEXT,
+                    target_admin_id INTEGER,
+                    target_admin_email TEXT,
+                    target_coop_name TEXT,
+                    impersonated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
 
         conn.commit()
     except Exception as e:
@@ -930,7 +964,8 @@ def get_coop_by_slug(slug: str):
         cursor.execute('''
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
-                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, charges_enabled, created_at
+                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
+                   charges_enabled, payments_enabled, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -949,7 +984,8 @@ def get_coop_by_slug(slug: str):
                 'mailchimp_audience_id': row[10],
                 'stripe_account_id': row[11],
                 'charges_enabled': row[12],
-                'created_at': row[13],
+                'payments_enabled': row[13],
+                'created_at': row[14],
             }
         else:
             result = None
@@ -973,7 +1009,8 @@ def get_coop_by_id(coop_id: int):
         cursor.execute('''
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
-                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, charges_enabled, created_at
+                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
+                   charges_enabled, payments_enabled, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -992,7 +1029,8 @@ def get_coop_by_id(coop_id: int):
                 'mailchimp_audience_id': row[10],
                 'stripe_account_id': row[11],
                 'charges_enabled': row[12],
-                'created_at': row[13],
+                'payments_enabled': row[13],
+                'created_at': row[14],
             }
         else:
             result = None
@@ -1517,11 +1555,11 @@ def get_all_coops():
     cursor = conn.cursor()
     
     if USE_POSTGRES:
-        cursor.execute('SELECT id, name, slug FROM coops ORDER BY name')
+        cursor.execute('SELECT id, name, slug, payments_enabled FROM coops ORDER BY name')
         rows = cursor.fetchall()
-        results = [{'id': r[0], 'name': r[1], 'slug': r[2]} for r in rows]
+        results = [{'id': r[0], 'name': r[1], 'slug': r[2], 'payments_enabled': r[3]} for r in rows]
     else:
-        cursor.execute('SELECT id, name, slug FROM coops ORDER BY name')
+        cursor.execute('SELECT id, name, slug, payments_enabled FROM coops ORDER BY name')
         results = cursor.fetchall()
     
     conn.close()
@@ -1799,3 +1837,61 @@ def delete_member_payment(payment_id: int, coop_id: int) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+def update_coop_payments_enabled(coop_id: int, enabled: bool):
+    """Enable or disable the payment recording UI for a co-op."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('UPDATE coops SET payments_enabled = %s WHERE id = %s', (enabled, coop_id))
+    else:
+        cursor.execute('UPDATE coops SET payments_enabled = ? WHERE id = ?',
+                       (1 if enabled else 0, coop_id))
+    conn.commit()
+    conn.close()
+
+
+def get_admin_by_id(admin_id: int):
+    """Get an admin user by ID (used for impersonation)."""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute(
+            'SELECT id, username, email, coop_id, is_superadmin FROM admin_users WHERE id = %s',
+            (admin_id,)
+        )
+        row = cursor.fetchone()
+        result = {'id': row[0], 'username': row[1], 'email': row[2],
+                  'coop_id': row[3], 'is_superadmin': row[4]} if row else None
+    else:
+        cursor.execute(
+            'SELECT id, username, email, coop_id, is_superadmin FROM admin_users WHERE id = ?',
+            (admin_id,)
+        )
+        result = cursor.fetchone()
+    conn.close()
+    return result
+
+
+def log_impersonation(superadmin_id: int, superadmin_email: str,
+                      target_admin_id: int, target_admin_email: str, target_coop_name: str):
+    """Write an audit record when a superadmin impersonates a co-op admin."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO impersonation_log
+                (superadmin_id, superadmin_email, target_admin_id, target_admin_email, target_coop_name)
+            VALUES (%s, %s, %s, %s, %s)
+        ''', (superadmin_id, superadmin_email, target_admin_id, target_admin_email, target_coop_name))
+    else:
+        cursor.execute('''
+            INSERT INTO impersonation_log
+                (superadmin_id, superadmin_email, target_admin_id, target_admin_email, target_coop_name)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (superadmin_id, superadmin_email, target_admin_id, target_admin_email, target_coop_name))
+    conn.commit()
+    conn.close()
