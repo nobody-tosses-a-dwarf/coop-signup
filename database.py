@@ -6,6 +6,7 @@ import secrets
 import os
 from datetime import datetime, timedelta
 from typing import Optional
+import encryption
 
 # Determine which database to use
 DATABASE_URL = os.getenv('DATABASE_URL')
@@ -904,7 +905,7 @@ def get_coop_by_slug(slug: str):
         cursor.execute('''
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
-                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, created_at
+                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, charges_enabled, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -919,16 +920,19 @@ def get_coop_by_slug(slug: str):
                 'send_member_emails': row[6],
                 'member_email_subject': row[7],
                 'member_email_body': row[8],
-                'mailchimp_api_key': row[9],
+                'mailchimp_api_key': encryption.decrypt(row[9]) if row[9] else None,
                 'mailchimp_audience_id': row[10],
                 'stripe_account_id': row[11],
-                'created_at': row[12]
+                'charges_enabled': row[12],
+                'created_at': row[13],
             }
         else:
             result = None
     else:
         cursor.execute('SELECT * FROM coops WHERE slug = ?', (slug,))
         result = cursor.fetchone()
+        if result and result.get('mailchimp_api_key'):
+            result['mailchimp_api_key'] = encryption.decrypt(result['mailchimp_api_key'])
 
     conn.close()
     return result
@@ -944,7 +948,7 @@ def get_coop_by_id(coop_id: int):
         cursor.execute('''
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
-                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, created_at
+                   mailchimp_api_key, mailchimp_audience_id, stripe_account_id, charges_enabled, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -959,16 +963,19 @@ def get_coop_by_id(coop_id: int):
                 'send_member_emails': row[6],
                 'member_email_subject': row[7],
                 'member_email_body': row[8],
-                'mailchimp_api_key': row[9],
+                'mailchimp_api_key': encryption.decrypt(row[9]) if row[9] else None,
                 'mailchimp_audience_id': row[10],
                 'stripe_account_id': row[11],
-                'created_at': row[12]
+                'charges_enabled': row[12],
+                'created_at': row[13],
             }
         else:
             result = None
     else:
         cursor.execute('SELECT * FROM coops WHERE id = ?', (coop_id,))
         result = cursor.fetchone()
+        if result and result.get('mailchimp_api_key'):
+            result['mailchimp_api_key'] = encryption.decrypt(result['mailchimp_api_key'])
 
     conn.close()
     return result
@@ -998,6 +1005,8 @@ def update_coop_email_settings(coop_id: int, contact_email: Optional[str],
     conn = get_connection()
     cursor = conn.cursor()
 
+    encrypted_key = encryption.encrypt(mailchimp_api_key) if mailchimp_api_key else None
+
     if USE_POSTGRES:
         cursor.execute('''
             UPDATE coops SET contact_email = %s, send_member_emails = %s,
@@ -1006,7 +1015,7 @@ def update_coop_email_settings(coop_id: int, contact_email: Optional[str],
             WHERE id = %s
         ''', (contact_email or None, send_member_emails,
               member_email_subject or None, member_email_body or None,
-              mailchimp_api_key or None, mailchimp_audience_id or None, coop_id))
+              encrypted_key, mailchimp_audience_id or None, coop_id))
     else:
         cursor.execute('''
             UPDATE coops SET contact_email = ?, send_member_emails = ?,
@@ -1015,7 +1024,7 @@ def update_coop_email_settings(coop_id: int, contact_email: Optional[str],
             WHERE id = ?
         ''', (contact_email or None, 1 if send_member_emails else 0,
               member_email_subject or None, member_email_body or None,
-              mailchimp_api_key or None, mailchimp_audience_id or None, coop_id))
+              encrypted_key, mailchimp_audience_id or None, coop_id))
 
     conn.commit()
     conn.close()
