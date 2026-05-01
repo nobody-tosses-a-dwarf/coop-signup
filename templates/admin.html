@@ -331,6 +331,16 @@
         .qr-img-box img { display: block; width: 280px; height: 280px; }
         .qr-actions { display: flex; flex-direction: column; gap: 10px; }
         .preview-note { margin-top: 10px; font-size: 13px; color: #666; }
+
+        /* ===== Advanced settings toggle ===== */
+        .advanced-toggle {
+            display: flex; justify-content: space-between; align-items: center;
+            cursor: pointer; user-select: none;
+            font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+            color: #aaa; padding: 6px 0 16px; border-top: 1px solid #e0e0e0; margin-top: 10px;
+        }
+        .advanced-toggle:hover { color: #666; }
+        .adv-arrow { transition: transform 0.3s; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -701,21 +711,20 @@
             </div>
         </div>
 
-        <!-- Email Settings -->
+        <!-- Email (basic) -->
         <div class="section">
-            <div class="collapsible" id="emailSettingsToggle">Email Settings</div>
-            <div class="collapsible-content" id="emailSettingsContent">
-            <form method="POST" action="/{{ coop.slug }}/admin/update-email-settings">
+            <div class="section-header">
+                <h2>Email</h2>
+            </div>
+            <form method="POST" action="/{{ coop.slug }}/admin/update-basic-email">
                 <div class="form-group" style="margin-bottom: 20px;">
                     <label>Reply-To Email Address</label>
                     <input type="email" name="contact_email" value="{{ coop.contact_email or '' }}"
-                           placeholder="membership@yourcoop.org"
-                           style="max-width: 400px;">
+                           placeholder="membership@yourcoop.org" style="max-width: 400px;">
                     <p style="font-size: 13px; color: #666; margin-top: 5px;">
-                        When members reply to their confirmation email, replies will go to this address instead of the system default.
+                        When members reply to their confirmation email, replies go to this address.
                     </p>
                 </div>
-
                 <div style="margin-bottom: 20px;">
                     <div class="checkbox-group">
                         <input type="checkbox" name="send_member_emails" id="send_member_emails"
@@ -723,168 +732,188 @@
                         <label for="send_member_emails">Send confirmation emails to new members</label>
                     </div>
                     <p style="font-size: 13px; color: #666; margin-top: 5px;">
-                        Uncheck if you handle member welcome emails through your own system (e.g. Mailchimp).
+                        Uncheck if you handle member emails through your own system.
                     </p>
                 </div>
-
-                <div class="form-group" style="margin-bottom: 15px;">
-                    <label>Confirmation Email Subject</label>
-                    <input type="text" name="member_email_subject"
-                           value="{{ coop.member_email_subject or '' }}"
-                           placeholder="Leave blank to use default: &quot;Welcome to {coop_name}!&quot;"
-                           style="max-width: 500px;">
-                </div>
-
-                <div class="form-group">
-                    <label>Confirmation Email Body (HTML)</label>
-                    <textarea name="member_email_body"
-                              placeholder="Leave blank to use the default template."
-                              style="min-height: 200px; font-family: monospace; font-size: 13px;">{{ coop.member_email_body or '' }}</textarea>
-                    <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-top: 8px; font-size: 13px;">
-                        <strong>Available placeholders:</strong>
-                        <code>{first_name}</code> &nbsp;
-                        <code>{coop_name}</code> &nbsp;
-                        <code>{member_number}</code> &nbsp;
-                        <code>{membership_type}</code> &nbsp;
-                        <code>{total_amount}</code> &nbsp;
-                        <code>{payment_plan}</code> &nbsp;
-                        <code>{payment_plan_label}</code>
-                    </div>
-                </div>
-
-                <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
-
-                <h3 style="margin-bottom: 15px; font-size: 16px; color: #333;">Mailchimp Integration</h3>
-                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
-                    When members opt in to the newsletter during signup, they'll be automatically added to your Mailchimp audience. Leave blank to disable.
-                </p>
-                <div class="form-grid">
-                    <div class="form-group">
-                        <label>Mailchimp API Key</label>
-                        <input type="text" name="mailchimp_api_key"
-                               value="{{ coop.mailchimp_api_key or '' }}"
-                               placeholder="abc123...-us21">
-                        <p style="font-size: 12px; color: #666; margin-top: 4px;">Found in Mailchimp → Account → Extras → API Keys</p>
-                    </div>
-                    <div class="form-group">
-                        <label>Audience ID</label>
-                        <input type="text" name="mailchimp_audience_id"
-                               value="{{ coop.mailchimp_audience_id or '' }}"
-                               placeholder="a1b2c3d4e5">
-                        <p style="font-size: 12px; color: #666; margin-top: 4px;">Found in Mailchimp → Audience → Settings → Audience name and defaults</p>
-                    </div>
-                </div>
-
-                <button type="submit" class="btn" style="margin-top: 15px;">Save Email Settings</button>
+                <button type="submit" class="btn">Save</button>
             </form>
-            </div>
         </div>
 
-        <!-- Membership Agreement -->
-        <div class="section">
-            <div class="collapsible" id="agreementToggle">Membership Agreement</div>
-            <div class="collapsible-content" id="agreementContent">
-            <form method="POST" action="/{{ coop.slug }}/admin/update-agreement">
-                <div class="form-group">
-                    <label>Agreement Text</label>
-                    <textarea name="membership_agreement" placeholder="Enter your membership agreement text here. Members will be required to agree to this before signing up.">{{ coop.membership_agreement or '' }}</textarea>
-                    <p style="font-size: 13px; color: #666; margin-top: 5px;">This will be displayed on a separate page that members must review before completing signup.</p>
-                </div>
-                <button type="submit" class="btn">Save Membership Agreement</button>
-            </form>
-            </div>
+        <!-- Advanced Settings toggle -->
+        <div class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
+            <span>Advanced Settings</span>
+            <span class="adv-arrow">&#9660;</span>
         </div>
+        <div id="advancedContent" style="display:none;">
 
-        <!-- Embed & Share -->
-        <div class="section">
-            <div class="collapsible" id="embedToggle">Embed &amp; Share</div>
-            <div class="collapsible-content" id="embedContent">
-                <div class="embed-inner">
+            <!-- Custom Email Template + Mailchimp -->
+            <div class="section">
+                <div class="collapsible" id="emailAdvToggle">Custom Email Template &amp; Mailchimp</div>
+                <div class="collapsible-content" id="emailAdvContent">
+                <form method="POST" action="/{{ coop.slug }}/admin/update-email-settings">
+                    <input type="hidden" name="contact_email" value="{{ coop.contact_email or '' }}">
+                    <input type="hidden" name="send_member_emails" value="{% if coop.send_member_emails is not false and coop.send_member_emails != 0 %}on{% endif %}">
 
-                    <div class="embed-block">
-                        <div class="embed-block-title">QR Code</div>
-                        <div class="qr-wrap">
-                            <div class="qr-img-box">
-                                <img id="qr-img" src="" alt="QR Code">
-                            </div>
-                            <div class="qr-actions">
-                                <a id="qr-download" href="" download="signup-qr.png" class="btn">Download QR Code</a>
-                                <p class="preview-note" style="margin: 0; max-width: 250px;">
-                                    Scans directly to your signup URL. Print on flyers or display at events.
-                                </p>
-                            </div>
+                    <div class="form-group" style="margin-bottom: 15px;">
+                        <label>Confirmation Email Subject</label>
+                        <input type="text" name="member_email_subject"
+                               value="{{ coop.member_email_subject or '' }}"
+                               placeholder="Leave blank to use default: &quot;Welcome to {coop_name}!&quot;"
+                               style="max-width: 500px;">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Confirmation Email Body (HTML)</label>
+                        <textarea name="member_email_body"
+                                  placeholder="Leave blank to use the default template."
+                                  style="min-height: 200px; font-family: monospace; font-size: 13px;">{{ coop.member_email_body or '' }}</textarea>
+                        <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-top: 8px; font-size: 13px;">
+                            <strong>Available placeholders:</strong>
+                            <code>{first_name}</code> &nbsp;
+                            <code>{coop_name}</code> &nbsp;
+                            <code>{member_number}</code> &nbsp;
+                            <code>{membership_type}</code> &nbsp;
+                            <code>{total_amount}</code> &nbsp;
+                            <code>{payment_plan}</code> &nbsp;
+                            <code>{payment_plan_label}</code>
                         </div>
                     </div>
 
-                    <div class="embed-block">
-                        <div class="embed-block-title">Embed on Your Website</div>
+                    <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
 
-                        <div class="option-row">
-                            <label class="option-label" for="opt-header">Show co-op header</label>
-                            <div class="option-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="opt-header" checked onchange="updateEmbed()">
-                                    <span class="toggle-slider"></span>
-                                </label>
+                    <h3 style="margin-bottom: 15px; font-size: 16px; color: #333;">Mailchimp Integration</h3>
+                    <p style="font-size: 13px; color: #666; margin-bottom: 15px;">
+                        When members opt in to the newsletter during signup, they'll be automatically added to your Mailchimp audience. Leave blank to disable.
+                    </p>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Mailchimp API Key</label>
+                            <input type="text" name="mailchimp_api_key"
+                                   value="{{ coop.mailchimp_api_key or '' }}"
+                                   placeholder="abc123...-us21">
+                            <p style="font-size: 12px; color: #666; margin-top: 4px;">Found in Mailchimp → Account → Extras → API Keys</p>
+                        </div>
+                        <div class="form-group">
+                            <label>Audience ID</label>
+                            <input type="text" name="mailchimp_audience_id"
+                                   value="{{ coop.mailchimp_audience_id or '' }}"
+                                   placeholder="a1b2c3d4e5">
+                            <p style="font-size: 12px; color: #666; margin-top: 4px;">Found in Mailchimp → Audience → Settings → Audience name and defaults</p>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn" style="margin-top: 15px;">Save</button>
+                </form>
+                </div>
+            </div>
+
+            <!-- Membership Agreement -->
+            <div class="section">
+                <div class="collapsible" id="agreementToggle">Membership Agreement</div>
+                <div class="collapsible-content" id="agreementContent">
+                <form method="POST" action="/{{ coop.slug }}/admin/update-agreement">
+                    <div class="form-group">
+                        <label>Agreement Text</label>
+                        <textarea name="membership_agreement" placeholder="Enter your membership agreement text here. Members will be required to agree to this before signing up.">{{ coop.membership_agreement or '' }}</textarea>
+                        <p style="font-size: 13px; color: #666; margin-top: 5px;">This will be displayed on a separate page that members must review before completing signup.</p>
+                    </div>
+                    <button type="submit" class="btn">Save</button>
+                </form>
+                </div>
+            </div>
+
+            <!-- Embed & Share -->
+            <div class="section">
+                <div class="collapsible" id="embedToggle">Embed &amp; Share</div>
+                <div class="collapsible-content" id="embedContent">
+                    <div class="embed-inner">
+
+                        <div class="embed-block">
+                            <div class="embed-block-title">QR Code</div>
+                            <div class="qr-wrap">
+                                <div class="qr-img-box">
+                                    <img id="qr-img" src="" alt="QR Code">
+                                </div>
+                                <div class="qr-actions">
+                                    <a id="qr-download" href="" download="signup-qr.png" class="btn">Download QR Code</a>
+                                    <p class="preview-note" style="margin: 0; max-width: 250px;">
+                                        Scans directly to your signup URL. Print on flyers or display at events.
+                                    </p>
+                                </div>
                             </div>
-                            <span class="option-help">Shows &quot;Join {{ coop.name }}&quot; title above the form</span>
                         </div>
 
-                        <div class="option-row">
-                            <label class="option-label" for="opt-bg">Show background</label>
-                            <div class="option-control">
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="opt-bg" checked onchange="updateEmbed()">
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            <span class="option-help">Gradient background and card shadow. Turn off for transparent embed.</span>
-                        </div>
+                        <div class="embed-block">
+                            <div class="embed-block-title">Embed on Your Website</div>
 
-                        <div class="option-row">
-                            <label class="option-label" for="opt-width">Form max width</label>
-                            <div class="option-control">
-                                <select id="opt-width" class="select-input" onchange="updateEmbed()">
-                                    <option value="800px">800px (default)</option>
-                                    <option value="600px">600px</option>
-                                    <option value="700px">700px</option>
-                                    <option value="100%">100% (fill container)</option>
-                                </select>
+                            <div class="option-row">
+                                <label class="option-label" for="opt-header">Show co-op header</label>
+                                <div class="option-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="opt-header" checked onchange="updateEmbed()">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <span class="option-help">Shows &quot;Join {{ coop.name }}&quot; title above the form</span>
                             </div>
-                            <span class="option-help">Maximum width of the form content inside the iframe.</span>
-                        </div>
 
-                        <div class="option-row">
-                            <label class="option-label" for="opt-height">Iframe height</label>
-                            <div class="option-control">
-                                <input type="number" id="opt-height" class="number-input" value="1000" min="400" max="3000" step="50" onchange="updateEmbed()">
-                                <span style="color:#666; margin-left:5px;">px</span>
+                            <div class="option-row">
+                                <label class="option-label" for="opt-bg">Show background</label>
+                                <div class="option-control">
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="opt-bg" checked onchange="updateEmbed()">
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <span class="option-help">Gradient background and card shadow. Turn off for transparent embed.</span>
                             </div>
-                            <span class="option-help">Height of the iframe on your page.</span>
-                        </div>
 
-                        <div style="margin-top:20px;">
-                            <div class="embed-block-title">Preview URL</div>
-                            <div class="link-row">
-                                <input type="text" id="preview-url-input" readonly>
-                                <button class="copy-btn" onclick="copyFromInput('preview-url-input', this)">Copy</button>
-                                <a id="preview-open" href="" target="_blank" class="copy-btn" style="text-decoration:none;">Open</a>
+                            <div class="option-row">
+                                <label class="option-label" for="opt-width">Form max width</label>
+                                <div class="option-control">
+                                    <select id="opt-width" class="select-input" onchange="updateEmbed()">
+                                        <option value="800px">800px (default)</option>
+                                        <option value="600px">600px</option>
+                                        <option value="700px">700px</option>
+                                        <option value="100%">100% (fill container)</option>
+                                    </select>
+                                </div>
+                                <span class="option-help">Maximum width of the form content inside the iframe.</span>
                             </div>
-                            <p class="preview-note">Click &quot;Open&quot; to preview the form exactly as it will appear embedded.</p>
-                        </div>
 
-                        <div style="margin-top:20px;">
-                            <div class="embed-block-title">Iframe Code</div>
-                            <textarea id="embed-code-output" class="code-output" readonly></textarea>
-                            <div style="margin-top: 10px;">
-                                <button class="copy-btn" onclick="copyFromTextarea('embed-code-output', this)">Copy Iframe Code</button>
+                            <div class="option-row">
+                                <label class="option-label" for="opt-height">Iframe height</label>
+                                <div class="option-control">
+                                    <input type="number" id="opt-height" class="number-input" value="1000" min="400" max="3000" step="50" onchange="updateEmbed()">
+                                    <span style="color:#666; margin-left:5px;">px</span>
+                                </div>
+                                <span class="option-help">Height of the iframe on your page.</span>
                             </div>
-                            <p class="preview-note">Paste this into your website's HTML editor or a &quot;Custom HTML&quot; block.</p>
+
+                            <div style="margin-top:20px;">
+                                <div class="embed-block-title">Preview URL</div>
+                                <div class="link-row">
+                                    <input type="text" id="preview-url-input" readonly>
+                                    <button class="copy-btn" onclick="copyFromInput('preview-url-input', this)">Copy</button>
+                                    <a id="preview-open" href="" target="_blank" class="copy-btn" style="text-decoration:none;">Open</a>
+                                </div>
+                                <p class="preview-note">Click &quot;Open&quot; to preview the form exactly as it will appear embedded.</p>
+                            </div>
+
+                            <div style="margin-top:20px;">
+                                <div class="embed-block-title">Iframe Code</div>
+                                <textarea id="embed-code-output" class="code-output" readonly></textarea>
+                                <div style="margin-top: 10px;">
+                                    <button class="copy-btn" onclick="copyFromTextarea('embed-code-output', this)">Copy Iframe Code</button>
+                                </div>
+                                <p class="preview-note">Paste this into your website's HTML editor or a &quot;Custom HTML&quot; block.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+
+        </div><!-- /advancedContent -->
 
     </div>
 
@@ -983,10 +1012,18 @@
         document.getElementById('qr-download').href = qrUrl;
 
         // ---- Collapsibles ----
+        // ---- Advanced settings toggle ----
+        var advancedOpen = false;
+        function toggleAdvanced() {
+            advancedOpen = !advancedOpen;
+            document.getElementById('advancedContent').style.display = advancedOpen ? 'block' : 'none';
+            document.querySelector('.adv-arrow').style.transform = advancedOpen ? 'rotate(180deg)' : '';
+        }
+
         var collapsibles = [
             {toggle: 'addTypeToggle',       content: 'addTypeForm'},
             {toggle: 'stripeToggle',        content: 'stripeContent'},
-            {toggle: 'emailSettingsToggle', content: 'emailSettingsContent'},
+            {toggle: 'emailAdvToggle',      content: 'emailAdvContent'},
             {toggle: 'agreementToggle',     content: 'agreementContent'},
             {toggle: 'embedToggle',         content: 'embedContent'}
         ];
