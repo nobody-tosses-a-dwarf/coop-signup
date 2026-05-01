@@ -1100,6 +1100,26 @@ async def delete_member_route(request: Request, slug: str, member_id: int,
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting member: {str(e)}")
 
+@app.post("/{slug}/admin/update-branding")
+async def update_branding(request: Request, slug: str,
+                          logo_url: str = Form(''),
+                          welcome_text: str = Form(''),
+                          accent_color: str = Form(''),
+                          session_data: dict = Depends(require_auth),
+                          _csrf: None = Depends(check_csrf)):
+    """Save co-op branding settings."""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not session_data.get('is_superadmin') and session_data.get('coop_id') != coop['id']:
+        raise HTTPException(status_code=403, detail="Access denied")
+    import re
+    if accent_color and not re.fullmatch(r'#[0-9a-fA-F]{6}', accent_color):
+        accent_color = ''
+    db.update_coop_branding(coop['id'], logo_url.strip(), welcome_text.strip(), accent_color)
+    return RedirectResponse(f"/{slug}/admin", status_code=302)
+
+
 @app.post("/{slug}/admin/update-agreement")
 async def update_agreement(request: Request, slug: str,
                            membership_agreement: str = Form(...),

@@ -278,6 +278,24 @@ def migrate_db():
                     ) THEN
                         ALTER TABLE coops ADD COLUMN payments_enabled BOOLEAN DEFAULT TRUE;
                     END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='logo_url'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN logo_url TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='welcome_text'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN welcome_text TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='accent_color'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN accent_color TEXT;
+                    END IF;
                 END $$;
             """)
             cursor.execute('''
@@ -397,6 +415,21 @@ def migrate_db():
 
             try:
                 cursor.execute('ALTER TABLE coops ADD COLUMN payments_enabled INTEGER DEFAULT 1')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN logo_url TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN welcome_text TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN accent_color TEXT')
             except:
                 pass
 
@@ -965,7 +998,7 @@ def get_coop_by_slug(slug: str):
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
                    mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
-                   charges_enabled, payments_enabled, created_at
+                   charges_enabled, payments_enabled, logo_url, welcome_text, accent_color, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -985,7 +1018,10 @@ def get_coop_by_slug(slug: str):
                 'stripe_account_id': row[11],
                 'charges_enabled': row[12],
                 'payments_enabled': row[13],
-                'created_at': row[14],
+                'logo_url': row[14],
+                'welcome_text': row[15],
+                'accent_color': row[16],
+                'created_at': row[17],
             }
         else:
             result = None
@@ -1010,7 +1046,7 @@ def get_coop_by_id(coop_id: int):
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
                    mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
-                   charges_enabled, payments_enabled, created_at
+                   charges_enabled, payments_enabled, logo_url, welcome_text, accent_color, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -1030,7 +1066,10 @@ def get_coop_by_id(coop_id: int):
                 'stripe_account_id': row[11],
                 'charges_enabled': row[12],
                 'payments_enabled': row[13],
-                'created_at': row[14],
+                'logo_url': row[14],
+                'welcome_text': row[15],
+                'accent_color': row[16],
+                'created_at': row[17],
             }
         else:
             result = None
@@ -1848,6 +1887,24 @@ def update_coop_payments_enabled(coop_id: int, enabled: bool):
     else:
         cursor.execute('UPDATE coops SET payments_enabled = ? WHERE id = ?',
                        (1 if enabled else 0, coop_id))
+    conn.commit()
+    conn.close()
+
+
+def update_coop_branding(coop_id: int, logo_url: str, welcome_text: str, accent_color: str):
+    """Save branding fields for a co-op."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute(
+            'UPDATE coops SET logo_url = %s, welcome_text = %s, accent_color = %s WHERE id = %s',
+            (logo_url or None, welcome_text or None, accent_color or None, coop_id)
+        )
+    else:
+        cursor.execute(
+            'UPDATE coops SET logo_url = ?, welcome_text = ?, accent_color = ? WHERE id = ?',
+            (logo_url or None, welcome_text or None, accent_color or None, coop_id)
+        )
     conn.commit()
     conn.close()
 

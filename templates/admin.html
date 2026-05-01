@@ -768,6 +768,47 @@
             </form>
         </div>
 
+        <!-- Branding -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Branding</h2>
+            </div>
+            <form method="POST" action="/{{ coop.slug }}/admin/update-branding">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Logo URL</label>
+                    <input type="url" name="logo_url" value="{{ coop.logo_url or '' }}"
+                           placeholder="https://yourcoop.org/logo.png" style="max-width: 500px;">
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">
+                        Displayed above the signup form. Use a direct link to an image (PNG, SVG, JPG). Max height shown is 80px.
+                    </p>
+                    {% if coop.logo_url %}
+                    <div style="margin-top: 10px; padding: 12px; background: #f8f9fa; border-radius: 6px; display: inline-block;">
+                        <img src="{{ coop.logo_url }}" alt="Logo preview" style="max-height: 60px; max-width: 240px; object-fit: contain; display: block;">
+                    </div>
+                    {% endif %}
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Welcome Text</label>
+                    <input type="text" name="welcome_text" value="{{ coop.welcome_text or '' }}"
+                           placeholder="Complete the form below to become a member" style="max-width: 500px;" maxlength="200">
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">
+                        Shown below the &ldquo;Join {{ coop.name }}&rdquo; heading. Leave blank to use the default.
+                    </p>
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Accent Color</label>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <input type="color" name="accent_color"
+                               value="{{ coop.accent_color or '#2c5f2d' }}"
+                               style="width: 48px; height: 36px; padding: 2px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">
+                        <span style="font-size: 13px; color: #666;">Used for headings, buttons, and highlights on the signup page.</span>
+                    </div>
+                </div>
+                <button type="submit" class="btn">Save Branding</button>
+            </form>
+        </div>
+
         <!-- Advanced Settings toggle -->
         <div class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
             <span>Advanced Settings</span>
