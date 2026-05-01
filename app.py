@@ -87,6 +87,8 @@ def require_auth(request: Request):
 def require_superadmin(request: Request):
     """Dependency to require superadmin authentication"""
     session_data = require_auth(request)
+    if session_data.get('_impersonating'):
+        raise HTTPException(status_code=302, headers={"Location": "/superadmin/exit-impersonation"})
     if not session_data.get('is_superadmin'):
         raise HTTPException(status_code=403, detail="Superadmin access required")
     return session_data
