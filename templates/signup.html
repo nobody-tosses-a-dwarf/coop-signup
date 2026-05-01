@@ -516,6 +516,20 @@
             var plan = getSelectedPlan();
             if (plan !== 'full' && plan !== 'installments') return; // pay later — submit normally
 
+            // Run required-field check manually since this.submit() bypasses browser validation
+            var missing = [];
+            ['first_name','last_name','email','phone','address','zip'].forEach(function(id) {
+                if (!document.getElementById(id).value.trim()) missing.push(id);
+            });
+            var stateVal = document.getElementById('state').value;
+            if (!stateVal) missing.push('state');
+            if (!document.querySelector('input[name="membership_type_id"]:checked')) missing.push('membership_type_id');
+            if (missing.length) {
+                // Let the browser handle it via reportValidity
+                this.reportValidity();
+                return;
+            }
+
             e.preventDefault();
             var btn = document.getElementById('submit-btn');
             btn.disabled = true;
