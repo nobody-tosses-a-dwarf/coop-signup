@@ -265,6 +265,12 @@ def migrate_db():
                     ) THEN
                         ALTER TABLE coops ADD COLUMN stripe_account_id TEXT;
                     END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='charges_enabled'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN charges_enabled BOOLEAN DEFAULT FALSE;
+                    END IF;
                 END $$;
             """)
         else:
@@ -363,6 +369,11 @@ def migrate_db():
 
             try:
                 cursor.execute('ALTER TABLE coops ADD COLUMN stripe_account_id TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN charges_enabled INTEGER DEFAULT 0')
             except:
                 pass
 
@@ -553,6 +564,31 @@ def init_db():
         )
     ''')
     
+    # Stripe disputes table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stripe_disputes (
+            id SERIAL PRIMARY KEY,
+            coop_id INTEGER REFERENCES coops(id) ON DELETE SET NULL,
+            stripe_dispute_id TEXT NOT NULL UNIQUE,
+            stripe_charge_id TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            reason TEXT,
+            status TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''' if USE_POSTGRES else '''
+        CREATE TABLE IF NOT EXISTS stripe_disputes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            coop_id INTEGER REFERENCES coops(id) ON DELETE SET NULL,
+            stripe_dispute_id TEXT NOT NULL UNIQUE,
+            stripe_charge_id TEXT NOT NULL,
+            amount INTEGER NOT NULL,
+            reason TEXT,
+            status TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # System settings table (key-value store for superadmin-editable platform settings)
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS system_settings (
@@ -1524,6 +1560,77 @@ def get_admin_users(coop_id: Optional[int] = None):
             })
     else:
         results = cursor.fetchall()
-    
+
     conn.close()
     return results
+
+
+def update_coop_charges_enabled(stripe_account_id: str, charges_enabled: bool):
+    """Update the cached charges_enabled flag for a co-op by Stripe account ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute(
+            'UPDATE coops SET charges_enabled = %s WHERE stripe_account_id = %s',
+            (charges_enabled, stripe_account_id)
+        )
+    else:
+        cursor.execute(
+            'UPDATE coops SET charges_enabled = ? WHERE stripe_account_id = ?',
+            (1 if charges_enabled else 0, stripe_account_id)
+        )
+    conn.commit()
+    conn.close()
+
+
+def record_dispute(stripe_account_id: Optional[str], stripe_dispute_id: str,
+                   stripe_charge_id: str, amount: int, reason: str, status: str):
+    """Insert a dispute record, ignoring duplicates (idempotent)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    coop_id = None
+    if stripe_account_id:
+        if USE_POSTGRES:
+            cursor.execute('SELECT id FROM coops WHERE stripe_account_id = %s', (stripe_account_id,))
+        else:
+            cursor.execute('SELECT id FROM coops WHERE stripe_account_id = ?', (stripe_account_id,))
+        row = cursor.fetchone()
+        if row:
+            coop_id = row[0] if USE_POSTGRES else row['id']
+
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO stripe_disputes (coop_id, stripe_dispute_id, stripe_charge_id, amount, reason, status)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (stripe_dispute_id) DO NOTHING
+        ''', (coop_id, stripe_dispute_id, stripe_charge_id, amount, reason, status))
+    else:
+        cursor.execute('''
+            INSERT OR IGNORE INTO stripe_disputes (coop_id, stripe_dispute_id, stripe_charge_id, amount, reason, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (coop_id, stripe_dispute_id, stripe_charge_id, amount, reason, status))
+
+    conn.commit()
+    conn.close()
+
+
+def get_open_dispute_count(coop_id: int) -> int:
+    """Return the number of non-closed disputes for a co-op."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute(
+            "SELECT COUNT(*) FROM stripe_disputes WHERE coop_id = %s AND status != 'won'",
+            (coop_id,)
+        )
+        count = cursor.fetchone()[0]
+    else:
+        cursor.execute(
+            "SELECT COUNT(*) FROM stripe_disputes WHERE coop_id = ? AND status != 'won'",
+            (coop_id,)
+        )
+        row = cursor.fetchone()
+        count = row['COUNT(*)'] if row else 0
+    conn.close()
+    return count

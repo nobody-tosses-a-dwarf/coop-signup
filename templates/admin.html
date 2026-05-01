@@ -457,6 +457,15 @@
         </div>
         {% endif %}
 
+        {% if open_disputes > 0 %}
+        <div class="stripe-callout" style="background:#fff3cd; border-left:4px solid #ffc107;">
+            <p>&#9888;&nbsp; <strong>{{ open_disputes }} open dispute{{ 's' if open_disputes != 1 else '' }}.</strong>
+            A member has disputed a charge. Log in to your
+            <a href="https://dashboard.stripe.com/disputes" target="_blank" style="color:#856404;">Stripe dashboard</a>
+            to respond — disputes must be answered within 7–21 days or Stripe will side with the cardholder.</p>
+        </div>
+        {% endif %}
+
         <!-- Members -->
         <div class="section">
             <div class="section-header">

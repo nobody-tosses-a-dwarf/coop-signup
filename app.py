@@ -44,6 +44,7 @@ async def check_csrf(request: Request, csrf_token: str = Form(...)):
 # Stripe
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY', '')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET', '')
 if STRIPE_SECRET_KEY:
     stripe_lib.api_key = STRIPE_SECRET_KEY
 
@@ -599,6 +600,42 @@ async def stripe_disconnect(request: Request, slug: str, session_data: dict = De
     return RedirectResponse(f"/{slug}/admin", status_code=302)
 
 
+@app.post("/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Stripe webhook — handles account.updated and charge.dispute.created."""
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=400, detail="Webhook not configured")
+
+    payload = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+
+    try:
+        event = stripe_lib.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid payload")
+    except stripe_lib.error.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    event_type = event["type"]
+
+    if event_type == "account.updated":
+        account = event["data"]["object"]
+        db.update_coop_charges_enabled(account["id"], account["charges_enabled"])
+
+    elif event_type == "charge.dispute.created":
+        dispute = event["data"]["object"]
+        db.record_dispute(
+            stripe_account_id=event.get("account"),
+            stripe_dispute_id=dispute["id"],
+            stripe_charge_id=dispute["charge"],
+            amount=dispute["amount"],
+            reason=dispute.get("reason", ""),
+            status=dispute["status"],
+        )
+
+    return {"status": "ok"}
+
+
 @app.post("/{slug}/submit")
 async def submit_signup(request: Request, slug: str,
                         _csrf: None = Depends(check_csrf),
@@ -753,16 +790,22 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
         if session_data.get('coop_id') != coop['id']:
             raise HTTPException(status_code=403, detail="Access denied")
 
-    # Check Stripe Connect account status
+    stripe_just_connected = request.query_params.get('stripe_connected') == '1'
+
+    # Check Stripe Connect account status.
+    # Normally use the DB-cached value kept fresh by the webhook.
+    # Do one live check right after onboarding to seed the cache immediately.
     stripe_charges_enabled = False
     if STRIPE_SECRET_KEY and coop.get('stripe_account_id'):
-        try:
-            acct = stripe_lib.Account.retrieve(coop['stripe_account_id'])
-            stripe_charges_enabled = acct.charges_enabled
-        except Exception:
-            pass
-
-    stripe_just_connected = request.query_params.get('stripe_connected') == '1'
+        if stripe_just_connected:
+            try:
+                acct = stripe_lib.Account.retrieve(coop['stripe_account_id'])
+                stripe_charges_enabled = acct.charges_enabled
+                db.update_coop_charges_enabled(coop['stripe_account_id'], acct.charges_enabled)
+            except Exception:
+                stripe_charges_enabled = bool(coop.get('charges_enabled'))
+        else:
+            stripe_charges_enabled = bool(coop.get('charges_enabled'))
 
     members = db.get_all_members(coop['id'])
     membership_types = db.get_membership_types(coop['id'])
@@ -787,6 +830,8 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
     base_domain = os.getenv('BASE_DOMAIN', 'coopsignup.com')
     embed_code = f'<iframe src="https://{base_domain}/{slug}?embed=1" width="100%" height="800" frameborder="0"></iframe>'
     
+    open_disputes = db.get_open_dispute_count(coop['id'])
+
     return templates.TemplateResponse("admin.html", {
         "request": request,
         "coop": coop,
@@ -802,6 +847,7 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
         "stripe_configured": bool(STRIPE_SECRET_KEY),
         "stripe_charges_enabled": stripe_charges_enabled,
         "stripe_just_connected": stripe_just_connected,
+        "open_disputes": open_disputes,
     })
 
 @app.post("/{slug}/admin/membership-types/create")
