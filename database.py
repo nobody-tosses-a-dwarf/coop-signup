@@ -296,8 +296,24 @@ def migrate_db():
                     ) THEN
                         ALTER TABLE coops ADD COLUMN accent_color TEXT;
                     END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='last_exported_at'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN last_exported_at TIMESTAMP;
+                    END IF;
                 END $$;
             """)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS export_log (
+                    id SERIAL PRIMARY KEY,
+                    coop_id INTEGER,
+                    exported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    export_type TEXT,
+                    record_count INTEGER,
+                    since_date TIMESTAMP
+                )
+            ''')
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS impersonation_log (
                     id SERIAL PRIMARY KEY,
@@ -432,6 +448,22 @@ def migrate_db():
                 cursor.execute('ALTER TABLE coops ADD COLUMN accent_color TEXT')
             except:
                 pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN last_exported_at TIMESTAMP')
+            except:
+                pass
+
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS export_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    coop_id INTEGER,
+                    exported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    export_type TEXT,
+                    record_count INTEGER,
+                    since_date TIMESTAMP
+                )
+            ''')
 
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS impersonation_log (
@@ -998,7 +1030,8 @@ def get_coop_by_slug(slug: str):
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
                    mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
-                   charges_enabled, payments_enabled, logo_url, welcome_text, accent_color, created_at
+                   charges_enabled, payments_enabled, logo_url, welcome_text, accent_color,
+                   last_exported_at, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -1021,7 +1054,8 @@ def get_coop_by_slug(slug: str):
                 'logo_url': row[14],
                 'welcome_text': row[15],
                 'accent_color': row[16],
-                'created_at': row[17],
+                'last_exported_at': row[17],
+                'created_at': row[18],
             }
         else:
             result = None
@@ -1046,7 +1080,8 @@ def get_coop_by_id(coop_id: int):
             SELECT id, name, slug, next_member_number, membership_agreement,
                    contact_email, send_member_emails, member_email_subject, member_email_body,
                    mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
-                   charges_enabled, payments_enabled, logo_url, welcome_text, accent_color, created_at
+                   charges_enabled, payments_enabled, logo_url, welcome_text, accent_color,
+                   last_exported_at, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -1069,7 +1104,8 @@ def get_coop_by_id(coop_id: int):
                 'logo_url': row[14],
                 'welcome_text': row[15],
                 'accent_color': row[16],
-                'created_at': row[17],
+                'last_exported_at': row[17],
+                'created_at': row[18],
             }
         else:
             result = None
@@ -1907,6 +1943,105 @@ def update_coop_branding(coop_id: int, logo_url: str, welcome_text: str, accent_
         )
     conn.commit()
     conn.close()
+
+
+def get_members_since(coop_id: int, since_date=None):
+    """Get members for a co-op, optionally filtered to those who signed up after since_date."""
+    if since_date is None:
+        return get_all_members(coop_id)
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT m.id, m.coop_id, m.membership_type_id, m.member_number,
+                   m.first_name, m.last_name, m.email, m.phone, m.address,
+                   m.city, m.state, m.zip, m.payment_plan,
+                   m.total_equity, m.total_dues, m.signup_fee,
+                   m.agreed_to_terms, m.newsletter, m.signed_up_at,
+                   mt.name as membership_type_name,
+                   m.stripe_payment_id, m.equity_paid, m.payment_date
+            FROM members m
+            JOIN membership_types mt ON m.membership_type_id = mt.id
+            WHERE m.coop_id = %s AND m.signed_up_at > %s
+            ORDER BY m.member_number ASC
+        ''', (coop_id, since_date))
+        rows = cursor.fetchall()
+        results = []
+        for row in rows:
+            results.append({
+                'id': row[0], 'coop_id': row[1], 'membership_type_id': row[2],
+                'member_number': row[3], 'first_name': row[4], 'last_name': row[5],
+                'email': row[6], 'phone': row[7], 'address': row[8],
+                'city': row[9], 'state': row[10], 'zip': row[11],
+                'payment_plan': row[12], 'total_equity': row[13], 'total_dues': row[14],
+                'signup_fee': row[15], 'agreed_to_terms': row[16], 'newsletter': row[17],
+                'signed_up_at': row[18], 'membership_type_name': row[19],
+                'stripe_payment_id': row[20], 'equity_paid': row[21], 'payment_date': row[22],
+            })
+    else:
+        cursor.execute('''
+            SELECT m.id, m.coop_id, m.membership_type_id, m.member_number,
+                   m.first_name, m.last_name, m.email, m.phone, m.address,
+                   m.city, m.state, m.zip, m.payment_plan,
+                   m.total_equity, m.total_dues, m.signup_fee,
+                   m.agreed_to_terms, m.newsletter, m.signed_up_at,
+                   mt.name as membership_type_name
+            FROM members m
+            JOIN membership_types mt ON m.membership_type_id = mt.id
+            WHERE m.coop_id = ? AND m.signed_up_at > ?
+            ORDER BY m.member_number ASC
+        ''', (coop_id, since_date))
+        results = cursor.fetchall()
+    conn.close()
+    return results
+
+
+def log_export(coop_id: int, export_type: str, record_count: int, since_date=None):
+    """Record an export event and update the co-op's last_exported_at timestamp."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            INSERT INTO export_log (coop_id, export_type, record_count, since_date)
+            VALUES (%s, %s, %s, %s)
+        ''', (coop_id, export_type, record_count, since_date))
+        cursor.execute('UPDATE coops SET last_exported_at = NOW() WHERE id = %s', (coop_id,))
+    else:
+        cursor.execute('''
+            INSERT INTO export_log (coop_id, export_type, record_count, since_date)
+            VALUES (?, ?, ?, ?)
+        ''', (coop_id, export_type, record_count, since_date))
+        cursor.execute("UPDATE coops SET last_exported_at = datetime('now') WHERE id = ?", (coop_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_export_log(coop_id: int, limit: int = 10):
+    """Return the most recent export events for a co-op."""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT exported_at, export_type, record_count, since_date
+            FROM export_log WHERE coop_id = %s
+            ORDER BY exported_at DESC LIMIT %s
+        ''', (coop_id, limit))
+        rows = cursor.fetchall()
+        results = [{'exported_at': r[0], 'export_type': r[1],
+                    'record_count': r[2], 'since_date': r[3]} for r in rows]
+    else:
+        cursor.execute('''
+            SELECT exported_at, export_type, record_count, since_date
+            FROM export_log WHERE coop_id = ?
+            ORDER BY exported_at DESC LIMIT ?
+        ''', (coop_id, limit))
+        results = cursor.fetchall()
+    conn.close()
+    return results
 
 
 def get_admin_by_id(admin_id: int):

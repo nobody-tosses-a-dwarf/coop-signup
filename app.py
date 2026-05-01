@@ -944,6 +944,7 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
     embed_code = f'<iframe src="https://{base_domain}/{slug}?embed=1" width="100%" height="800" frameborder="0"></iframe>'
     
     open_disputes = db.get_open_dispute_count(coop['id'])
+    export_log = db.get_export_log(coop['id'], limit=5)
 
     return templates.TemplateResponse("admin.html", {
         "request": request,
@@ -961,6 +962,7 @@ async def admin_dashboard(request: Request, slug: str, session_data: dict = Depe
         "stripe_charges_enabled": stripe_charges_enabled,
         "stripe_just_connected": stripe_just_connected,
         "open_disputes": open_disputes,
+        "export_log": export_log,
     })
 
 @app.post("/{slug}/admin/membership-types/create")
@@ -1270,8 +1272,10 @@ async def delete_member_payment(request: Request, slug: str, member_id: int, pay
 
 
 @app.get("/{slug}/admin/export")
-async def export_members(request: Request, slug: str, fmt: str = 'txt', session_data: dict = Depends(require_auth)):
-    """Export members to CoPOS format (txt or xlsx)"""
+async def export_members(request: Request, slug: str, fmt: str = 'txt',
+                         export_type: str = 'delta',
+                         session_data: dict = Depends(require_auth)):
+    """Export members to CoPOS format. export_type='delta' (default) or 'full'."""
     coop = db.get_coop_by_slug(slug)
     if not coop:
         raise HTTPException(status_code=404, detail="Co-op not found")
@@ -1280,22 +1284,31 @@ async def export_members(request: Request, slug: str, fmt: str = 'txt', session_
         if session_data.get('coop_id') != coop['id']:
             raise HTTPException(status_code=403, detail="Access denied")
 
-    members = db.get_all_members(coop['id'])
+    since_date = None
+    if export_type == 'delta':
+        since_date = coop.get('last_exported_at')
+        members = db.get_members_since(coop['id'], since_date)
+    else:
+        members = db.get_all_members(coop['id'])
+
+    db.log_export(coop['id'], export_type, len(members), since_date)
+
     date_str = datetime.now().strftime('%Y%m%d')
+    label = 'NEW' if export_type == 'delta' else 'FULL'
 
     if fmt == 'xlsx':
         content = copos_export.generate_copos_export_xlsx(members, coop)
         return Response(
             content=content,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            headers={"Content-Disposition": f'attachment; filename="MEMBERS{date_str}.xlsx"'}
+            headers={"Content-Disposition": f'attachment; filename="MEMBERS-{label}-{date_str}.xlsx"'}
         )
     else:
         content = copos_export.generate_copos_export(members, coop)
         return Response(
             content=content,
             media_type="text/plain",
-            headers={"Content-Disposition": f'attachment; filename="MEMBERS{date_str}.TXT"'}
+            headers={"Content-Disposition": f'attachment; filename="MEMBERS-{label}-{date_str}.TXT"'}
         )
 
 @app.get("/{slug}/qr")

@@ -481,8 +481,18 @@
                     <input type="text" class="member-search" id="memberSearch"
                            placeholder="Search name or email…"
                            oninput="filterMembers(this.value)">
-                    <a href="/{{ coop.slug }}/admin/export?fmt=txt" class="btn btn-sm">Export CoPOS (.txt)</a>
-                    <a href="/{{ coop.slug }}/admin/export?fmt=xlsx" class="btn btn-sm">Export Excel (.xlsx)</a>
+                    <a href="/{{ coop.slug }}/admin/export?fmt=txt&export_type=delta" class="btn btn-sm">New Members (.txt)</a>
+                    <a href="/{{ coop.slug }}/admin/export?fmt=xlsx&export_type=delta" class="btn btn-sm">New Members (.xlsx)</a>
+                    <a href="/{{ coop.slug }}/admin/export?fmt=txt&export_type=full" class="btn btn-sm" style="background:#6c757d;">Full Export (.txt)</a>
+                    <a href="/{{ coop.slug }}/admin/export?fmt=xlsx&export_type=full" class="btn btn-sm" style="background:#6c757d;">Full Export (.xlsx)</a>
+                </div>
+                <div style="font-size:12px; color:#888; margin-top:8px;">
+                    {% if coop.last_exported_at %}
+                    <strong>New Members</strong> includes signups after
+                    {{ (coop.last_exported_at|string)[:16] }} UTC
+                    {% else %}
+                    <strong>New Members</strong> will include all {{ total_members }} member{{ 's' if total_members != 1 else '' }} (never exported)
+                    {% endif %}
                 </div>
             </div>
 
@@ -562,6 +572,39 @@
             <p style="color: #666; text-align: center; padding: 40px 0;">No members yet. Share your signup link to get started!</p>
             {% endif %}
         </div>
+
+        <!-- Export history -->
+        {% if export_log %}
+        <div class="section" style="padding:20px 30px;">
+            <div style="font-size:13px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:12px;">Export History</div>
+            <table style="font-size:13px;">
+                <thead>
+                    <tr>
+                        <th style="font-size:11px;">Date (UTC)</th>
+                        <th style="font-size:11px;">Type</th>
+                        <th style="font-size:11px;">Records</th>
+                        <th style="font-size:11px;">Covered Since</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in export_log %}
+                    <tr>
+                        <td>{{ (row.exported_at|string)[:16] }}</td>
+                        <td>
+                            {% if row.export_type == 'full' %}
+                            <span class="badge badge-success">Full</span>
+                            {% else %}
+                            <span class="badge badge-warning">Delta</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ row.record_count }}</td>
+                        <td style="color:#888;">{{ (row.since_date|string)[:16] if row.since_date else '—' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
 
         <!-- Settings divider -->
         <div class="settings-divider">Setup &amp; Settings</div>
