@@ -253,8 +253,15 @@
                         <td><code>{{ coop.slug }}</code></td>
                         <td><a href="/{{ coop.slug }}/admin" class="coop-link">View Dashboard</a></td>
                         <td><a href="/{{ coop.slug }}" class="coop-link" target="_blank">Open Signup Page</a></td>
-                        <td>
-                            <button onclick="confirmDelete({{ coop.id }}, '{{ coop.name }}')" class="btn btn-danger">
+                        <td style="white-space:nowrap;">
+                            <form method="POST" action="/superadmin/coops/{{ coop.id }}/toggle-payments" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                <button type="submit" class="btn" style="font-size:12px; padding:5px 10px; background:{% if coop.payments_enabled %}#5a7d9a{% else %}#aaa{% endif %};"
+                                        title="{% if coop.payments_enabled %}Payments UI is ON — click to disable{% else %}Payments UI is OFF — click to enable{% endif %}">
+                                    Payments {% if coop.payments_enabled %}ON{% else %}OFF{% endif %}
+                                </button>
+                            </form>
+                            <button onclick="confirmDelete({{ coop.id }}, '{{ coop.name }}')" class="btn btn-danger" style="font-size:12px; padding:5px 10px;">
                                 Delete
                             </button>
                         </td>
@@ -314,11 +321,17 @@
                     <tr>
                         <td>{{ admin.email }}</td>
                         <td>{{ admin.coop_name }}</td>
-                        <td>
+                        <td style="white-space:nowrap;">
+                            <form method="POST" action="/superadmin/impersonate/{{ admin.id }}" style="display:inline;">
+                                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                                <button type="submit" class="btn" style="font-size:12px; padding:5px 10px; background:#5a7d9a;">
+                                    Impersonate
+                                </button>
+                            </form>
                             <form method="POST" action="/superadmin/delete-admin/{{ admin.id }}" style="display: inline;"
                                   onsubmit="return confirm('Delete admin user {{ admin.email }}? This cannot be undone.');">
                                 <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-                                <button type="submit" class="btn btn-danger">Delete</button>
+                                <button type="submit" class="btn btn-danger" style="font-size:12px; padding:5px 10px;">Delete</button>
                             </form>
                         </td>
                     </tr>
