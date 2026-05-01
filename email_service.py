@@ -19,7 +19,6 @@ DEFAULT_MEMBER_BODY = """\
 
     <h3>Your Membership Details:</h3>
     <p>
-        <strong>Member Number:</strong> {member_number}<br>
         <strong>Membership Type:</strong> {membership_type}<br>
         <strong>Total:</strong> ${total_amount}<br>
         <strong>Payment Plan:</strong> {payment_plan_label}
