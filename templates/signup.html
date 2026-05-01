@@ -598,7 +598,7 @@
                     .then(function(data) {
                         if (!data || !data.places || !data.places.length) {
                             feedback.style.color = '#dc3545';
-                            feedback.textContent = 'ZIP code not found — please check and re-enter.';
+                            feedback.textContent = 'ZIP code not found — please check it, then select your city and state below.';
                             return;
                         }
                         var place = data.places[0];
@@ -618,8 +618,8 @@
                         feedback.textContent = place['place name'] + ', ' + abbr;
                     })
                     .catch(function() {
-                        feedback.style.color = '#888';
-                        feedback.textContent = '';
+                        feedback.style.color = '#dc3545';
+                        feedback.textContent = 'ZIP lookup unavailable — please select your city and state below.';
                     });
             }
 
