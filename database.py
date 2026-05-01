@@ -878,26 +878,55 @@ def update_coop_email_settings(coop_id: int, contact_email: Optional[str],
 def update_member(member_id: int, coop_id: int, first_name: str, last_name: str,
                   email: str, phone: str, address: str, city: str, state: str,
                   zip_code: str, payment_plan: str, membership_type_id: int) -> bool:
-    """Update a member's details (scoped to coop for safety)"""
+    """Update a member's details (scoped to coop for safety).
+
+    When membership_type_id changes, the member's total_equity, total_dues, and
+    signup_fee are refreshed from the new type so the contracted amounts stay
+    in sync with what the type actually charges.
+    """
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Look up the (new) type's contracted amounts, scoped to this coop so an
+    # admin can't move a member onto another co-op's membership type.
+    if USE_POSTGRES:
+        cursor.execute('''
+            SELECT equity_amount, dues_amount, signup_fee
+            FROM membership_types WHERE id = %s AND coop_id = %s
+        ''', (membership_type_id, coop_id))
+    else:
+        cursor.execute('''
+            SELECT equity_amount, dues_amount, signup_fee
+            FROM membership_types WHERE id = ? AND coop_id = ?
+        ''', (membership_type_id, coop_id))
+    type_row = cursor.fetchone()
+    if not type_row:
+        conn.close()
+        return False
+    equity_amount, dues_amount, signup_fee = type_row[0], type_row[1], type_row[2]
 
     if USE_POSTGRES:
         cursor.execute('''
             UPDATE members SET first_name = %s, last_name = %s, email = %s, phone = %s,
                 address = %s, city = %s, state = %s, zip = %s,
-                payment_plan = %s, membership_type_id = %s
+                payment_plan = %s, membership_type_id = %s,
+                total_equity = %s, total_dues = %s, signup_fee = %s
             WHERE id = %s AND coop_id = %s
         ''', (first_name, last_name, email, phone, address, city, state, zip_code,
-              payment_plan, membership_type_id, member_id, coop_id))
+              payment_plan, membership_type_id,
+              equity_amount, dues_amount, signup_fee,
+              member_id, coop_id))
     else:
         cursor.execute('''
             UPDATE members SET first_name = ?, last_name = ?, email = ?, phone = ?,
                 address = ?, city = ?, state = ?, zip = ?,
-                payment_plan = ?, membership_type_id = ?
+                payment_plan = ?, membership_type_id = ?,
+                total_equity = ?, total_dues = ?, signup_fee = ?
             WHERE id = ? AND coop_id = ?
         ''', (first_name, last_name, email, phone, address, city, state, zip_code,
-              payment_plan, membership_type_id, member_id, coop_id))
+              payment_plan, membership_type_id,
+              equity_amount, dues_amount, signup_fee,
+              member_id, coop_id))
 
     updated = cursor.rowcount > 0
     conn.commit()

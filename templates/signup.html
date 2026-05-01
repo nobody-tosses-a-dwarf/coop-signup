@@ -368,10 +368,10 @@
                             Pay in Full
                         </label>
                     </div>
-                    <div class="payment-option">
+                    <div class="payment-option" id="installmentsOption">
                         <label>
                             <input type="radio" name="payment_plan" value="installments">
-                            Quarterly Installments (4 payments)
+                            <span id="installmentsLabel">Quarterly Installments (4 payments)</span>
                         </label>
                     </div>
                     <div class="payment-option">
@@ -420,9 +420,34 @@
             radio.addEventListener('change', function() {
                 document.querySelectorAll('.membership-type').forEach(t => t.classList.remove('selected'));
                 if (this.checked) this.closest('.membership-type').classList.add('selected');
+                updateInstallmentsAvailability();
                 updateCardSection();
             });
         });
+
+        function updateInstallmentsAvailability() {
+            var type = getSelectedType();
+            var optionEl = document.getElementById('installmentsOption');
+            var labelEl = document.getElementById('installmentsLabel');
+            var radio = optionEl.querySelector('input[type="radio"]');
+            if (!type) {
+                optionEl.style.display = '';
+                return;
+            }
+            var allowed = type.allows_installments === true || type.allows_installments === 1;
+            if (allowed) {
+                optionEl.style.display = '';
+                var count = parseInt(type.installment_count) || 4;
+                labelEl.textContent = 'Quarterly Installments (' + count + ' payments)';
+            } else {
+                optionEl.style.display = 'none';
+                if (radio.checked) {
+                    radio.checked = false;
+                    var fullRadio = document.querySelector('input[name="payment_plan"][value="full"]');
+                    if (fullRadio) fullRadio.checked = true;
+                }
+            }
+        }
 
         document.querySelectorAll('input[name="payment_plan"]').forEach(radio => {
             radio.addEventListener('change', updateCardSection);
