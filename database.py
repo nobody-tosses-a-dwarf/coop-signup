@@ -302,6 +302,30 @@ def migrate_db():
                     ) THEN
                         ALTER TABLE coops ADD COLUMN last_exported_at TIMESTAMP;
                     END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='notification_email'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN notification_email TEXT;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='notify_on_signup'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN notify_on_signup BOOLEAN DEFAULT FALSE;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='notify_daily'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN notify_daily BOOLEAN DEFAULT FALSE;
+                    END IF;
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns
+                        WHERE table_name='coops' AND column_name='notify_weekly'
+                    ) THEN
+                        ALTER TABLE coops ADD COLUMN notify_weekly BOOLEAN DEFAULT FALSE;
+                    END IF;
                 END $$;
             """)
             cursor.execute('''
@@ -451,6 +475,26 @@ def migrate_db():
 
             try:
                 cursor.execute('ALTER TABLE coops ADD COLUMN last_exported_at TIMESTAMP')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN notification_email TEXT')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN notify_on_signup INTEGER DEFAULT 0')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN notify_daily INTEGER DEFAULT 0')
+            except:
+                pass
+
+            try:
+                cursor.execute('ALTER TABLE coops ADD COLUMN notify_weekly INTEGER DEFAULT 0')
             except:
                 pass
 
@@ -1031,7 +1075,8 @@ def get_coop_by_slug(slug: str):
                    contact_email, send_member_emails, member_email_subject, member_email_body,
                    mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
                    charges_enabled, payments_enabled, logo_url, welcome_text, accent_color,
-                   last_exported_at, created_at
+                   last_exported_at, notification_email, notify_on_signup, notify_daily,
+                   notify_weekly, created_at
             FROM coops WHERE slug = %s
         ''', (slug,))
         row = cursor.fetchone()
@@ -1055,7 +1100,11 @@ def get_coop_by_slug(slug: str):
                 'welcome_text': row[15],
                 'accent_color': row[16],
                 'last_exported_at': row[17],
-                'created_at': row[18],
+                'notification_email': row[18],
+                'notify_on_signup': row[19],
+                'notify_daily': row[20],
+                'notify_weekly': row[21],
+                'created_at': row[22],
             }
         else:
             result = None
@@ -1081,7 +1130,8 @@ def get_coop_by_id(coop_id: int):
                    contact_email, send_member_emails, member_email_subject, member_email_body,
                    mailchimp_api_key, mailchimp_audience_id, stripe_account_id,
                    charges_enabled, payments_enabled, logo_url, welcome_text, accent_color,
-                   last_exported_at, created_at
+                   last_exported_at, notification_email, notify_on_signup, notify_daily,
+                   notify_weekly, created_at
             FROM coops WHERE id = %s
         ''', (coop_id,))
         row = cursor.fetchone()
@@ -1105,7 +1155,11 @@ def get_coop_by_id(coop_id: int):
                 'welcome_text': row[15],
                 'accent_color': row[16],
                 'last_exported_at': row[17],
-                'created_at': row[18],
+                'notification_email': row[18],
+                'notify_on_signup': row[19],
+                'notify_daily': row[20],
+                'notify_weekly': row[21],
+                'created_at': row[22],
             }
         else:
             result = None
@@ -1925,6 +1979,55 @@ def update_coop_payments_enabled(coop_id: int, enabled: bool):
                        (1 if enabled else 0, coop_id))
     conn.commit()
     conn.close()
+
+
+def update_coop_notifications(coop_id: int, notification_email: str,
+                              notify_on_signup: bool, notify_daily: bool, notify_weekly: bool):
+    """Save notification preferences for a co-op."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    if USE_POSTGRES:
+        cursor.execute('''
+            UPDATE coops
+            SET notification_email = %s, notify_on_signup = %s,
+                notify_daily = %s, notify_weekly = %s
+            WHERE id = %s
+        ''', (notification_email or None, notify_on_signup, notify_daily, notify_weekly, coop_id))
+    else:
+        cursor.execute('''
+            UPDATE coops
+            SET notification_email = ?, notify_on_signup = ?,
+                notify_daily = ?, notify_weekly = ?
+            WHERE id = ?
+        ''', (notification_email or None,
+              1 if notify_on_signup else 0,
+              1 if notify_daily else 0,
+              1 if notify_weekly else 0,
+              coop_id))
+    conn.commit()
+    conn.close()
+
+
+def get_coops_for_digest(period: str):
+    """Return coops that have digest notifications enabled for the given period ('daily' or 'weekly')."""
+    conn = get_connection()
+    if not USE_POSTGRES:
+        conn.row_factory = dict_factory
+    cursor = conn.cursor()
+    col = 'notify_daily' if period == 'daily' else 'notify_weekly'
+    if USE_POSTGRES:
+        cursor.execute(
+            f'SELECT id, name, slug, notification_email FROM coops WHERE {col} = TRUE AND notification_email IS NOT NULL'
+        )
+        rows = cursor.fetchall()
+        results = [{'id': r[0], 'name': r[1], 'slug': r[2], 'notification_email': r[3]} for r in rows]
+    else:
+        cursor.execute(
+            f'SELECT id, name, slug, notification_email FROM coops WHERE {col} = 1 AND notification_email IS NOT NULL'
+        )
+        results = cursor.fetchall()
+    conn.close()
+    return results
 
 
 def update_coop_branding(coop_id: int, logo_url: str, welcome_text: str, accent_color: str):

@@ -852,6 +852,52 @@
             </form>
         </div>
 
+        <!-- Notifications -->
+        <div class="section">
+            <div class="section-header">
+                <h2>Notifications</h2>
+            </div>
+            <form method="POST" action="/{{ coop.slug }}/admin/update-notifications">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label>Notification Email</label>
+                    <input type="email" name="notification_email"
+                           value="{{ coop.notification_email or session.email or '' }}"
+                           placeholder="{{ session.email }}" style="max-width: 400px;">
+                    <p style="font-size: 13px; color: #666; margin-top: 5px;">
+                        Where signup notifications and digest reports are sent.
+                    </p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
+                    <div class="checkbox-group">
+                        <input type="checkbox" name="notify_on_signup" id="notify_on_signup"
+                               {% if coop.notify_on_signup %}checked{% endif %}>
+                        <label for="notify_on_signup">
+                            <strong>Notify me on each signup</strong>
+                            <span style="font-weight:normal; color:#666;"> — one email per new member</span>
+                        </label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" name="notify_daily" id="notify_daily"
+                               {% if coop.notify_daily %}checked{% endif %}>
+                        <label for="notify_daily">
+                            <strong>Daily digest</strong>
+                            <span style="font-weight:normal; color:#666;"> — summary of signups in the past 24 hours</span>
+                        </label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" name="notify_weekly" id="notify_weekly"
+                               {% if coop.notify_weekly %}checked{% endif %}>
+                        <label for="notify_weekly">
+                            <strong>Weekly digest</strong>
+                            <span style="font-weight:normal; color:#666;"> — summary of signups in the past 7 days</span>
+                        </label>
+                    </div>
+                </div>
+                <button type="submit" class="btn">Save Notifications</button>
+            </form>
+        </div>
+
         <!-- Advanced Settings toggle -->
         <div class="advanced-toggle" id="advancedToggle" onclick="toggleAdvanced()">
             <span>Advanced Settings</span>

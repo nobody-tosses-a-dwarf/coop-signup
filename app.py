@@ -881,6 +881,17 @@ async def submit_signup(request: Request, slug: str,
                 custom_subject=coop.get('member_email_subject') or None,
                 custom_body=coop.get('member_email_body') or None,
             )
+
+        # Send signup notification to admin (if enabled)
+        if coop.get('notify_on_signup') and coop.get('notification_email') and membership_type:
+            try:
+                await email_service.send_signup_notification(
+                    coop['notification_email'], coop['name'],
+                    first_name, last_name, membership_type['name'],
+                    payment_plan, float(result.get('equity_amount', 0)),
+                )
+            except Exception:
+                pass  # never block signup on notification failure
         
         return templates.TemplateResponse("confirmation.html", {
             "request": request,
@@ -1120,6 +1131,63 @@ async def update_branding(request: Request, slug: str,
         accent_color = ''
     db.update_coop_branding(coop['id'], logo_url.strip(), welcome_text.strip(), accent_color)
     return RedirectResponse(f"/{slug}/admin", status_code=302)
+
+
+@app.post("/{slug}/admin/update-notifications")
+async def update_notifications(request: Request, slug: str,
+                               notification_email: str = Form(''),
+                               notify_on_signup: Optional[str] = Form(None),
+                               notify_daily: Optional[str] = Form(None),
+                               notify_weekly: Optional[str] = Form(None),
+                               session_data: dict = Depends(require_auth),
+                               _csrf: None = Depends(check_csrf)):
+    """Save notification preferences for a co-op."""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not session_data.get('is_superadmin') and session_data.get('coop_id') != coop['id']:
+        raise HTTPException(status_code=403, detail="Access denied")
+    if notification_email and not validation.validate_email(notification_email):
+        raise HTTPException(status_code=400, detail="Invalid notification email address")
+    db.update_coop_notifications(
+        coop['id'], notification_email.strip(),
+        notify_on_signup is not None,
+        notify_daily is not None,
+        notify_weekly is not None,
+    )
+    return RedirectResponse(f"/{slug}/admin", status_code=302)
+
+
+@app.get("/internal/digest")
+async def run_digest(request: Request, period: str = 'daily', key: str = ''):
+    """Send digest emails to all co-ops that have the relevant notification enabled.
+    Protect with DIGEST_SECRET env var. Call daily/weekly via an external cron job."""
+    expected = os.getenv('DIGEST_SECRET') or SECRET_KEY
+    if not key or key != expected:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    if period not in ('daily', 'weekly'):
+        raise HTTPException(status_code=400, detail="period must be 'daily' or 'weekly'")
+
+    from datetime import timezone, timedelta
+    hours = 25 if period == 'daily' else 169  # slight overlap so no gaps at cron boundaries
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+
+    coops = db.get_coops_for_digest(period)
+    results = []
+    for coop in coops:
+        coop_id = coop['id'] if isinstance(coop, dict) else coop['id']
+        name = coop['name'] if isinstance(coop, dict) else coop['name']
+        notif_email = coop['notification_email'] if isinstance(coop, dict) else coop['notification_email']
+        members = db.get_members_since(coop_id, cutoff)
+        if members:
+            try:
+                await email_service.send_digest_email(notif_email, name, period, members)
+                results.append({'coop': name, 'sent': True, 'count': len(members)})
+            except Exception as e:
+                results.append({'coop': name, 'sent': False, 'error': str(e)})
+        else:
+            results.append({'coop': name, 'sent': False, 'count': 0})
+    return {'period': period, 'results': results}
 
 
 @app.post("/{slug}/admin/update-agreement")

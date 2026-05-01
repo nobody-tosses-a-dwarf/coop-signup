@@ -232,3 +232,65 @@ async def send_member_confirmation_email(email: str, coop_name: str, member_numb
     html_content = apply_placeholders(custom_body or DEFAULT_MEMBER_BODY, variables)
 
     return await send_email(email, subject, html_content, reply_to=reply_to)
+
+
+async def send_signup_notification(notification_email: str, coop_name: str,
+                                   first_name: str, last_name: str,
+                                   membership_type: str, payment_plan: str,
+                                   total_equity: float):
+    """Notify the co-op admin that a new member signed up."""
+    plan_labels = {'full': 'Paid in Full', 'installments': 'Installments', 'later': 'Pay Later'}
+    plan_label = plan_labels.get(payment_plan, payment_plan)
+    subject = f"New member signup: {first_name} {last_name} — {coop_name}"
+    html_content = f"""
+<html><body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+<h2 style="color: #2c5f2d;">New Member Signup</h2>
+<p>A new member just signed up for <strong>{coop_name}</strong>.</p>
+<table style="border-collapse:collapse; margin-top:12px;">
+  <tr><td style="padding:4px 16px 4px 0; font-weight:600;">Name</td><td>{first_name} {last_name}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0; font-weight:600;">Membership Type</td><td>{membership_type}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0; font-weight:600;">Equity</td><td>${total_equity:.2f}</td></tr>
+  <tr><td style="padding:4px 16px 4px 0; font-weight:600;">Payment Plan</td><td>{plan_label}</td></tr>
+</table>
+<p style="margin-top:20px; font-size:13px; color:#888;">
+  This is an automated notification from the Co-op Signup System.
+</p>
+</body></html>"""
+    return await send_email(notification_email, subject, html_content)
+
+
+async def send_digest_email(notification_email: str, coop_name: str,
+                            period: str, members: list):
+    """Send a daily or weekly digest of new signups to the co-op admin."""
+    period_label = 'Daily' if period == 'daily' else 'Weekly'
+    count = len(members)
+    subject = f"{period_label} signup report: {count} new member{'s' if count != 1 else ''} — {coop_name}"
+
+    plan_labels = {'full': 'Paid in Full', 'installments': 'Installments', 'later': 'Pay Later'}
+
+    rows_html = ''.join(
+        f"<tr><td style='padding:6px 16px 6px 0;'>{m.get('first_name','')} {m.get('last_name','')}</td>"
+        f"<td style='padding:6px 16px 6px 0;'>{m.get('membership_type_name','')}</td>"
+        f"<td style='padding:6px 0;'>{plan_labels.get(m.get('payment_plan',''), m.get('payment_plan',''))}</td></tr>"
+        for m in members
+    )
+
+    html_content = f"""
+<html><body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+<h2 style="color: #2c5f2d;">{period_label} Signup Report — {coop_name}</h2>
+<p><strong>{count}</strong> new member{'s' if count != 1 else ''} signed up in the past {'24 hours' if period == 'daily' else '7 days'}.</p>
+<table style="border-collapse:collapse; margin-top:12px; width:100%; max-width:500px;">
+  <thead>
+    <tr style="border-bottom:2px solid #e0e0e0;">
+      <th style="text-align:left; padding:6px 16px 6px 0; font-size:12px; color:#888; text-transform:uppercase;">Name</th>
+      <th style="text-align:left; padding:6px 16px 6px 0; font-size:12px; color:#888; text-transform:uppercase;">Type</th>
+      <th style="text-align:left; padding:6px 0; font-size:12px; color:#888; text-transform:uppercase;">Plan</th>
+    </tr>
+  </thead>
+  <tbody>{rows_html}</tbody>
+</table>
+<p style="margin-top:20px; font-size:13px; color:#888;">
+  This is an automated report from the Co-op Signup System.
+</p>
+</body></html>"""
+    return await send_email(notification_email, subject, html_content)
