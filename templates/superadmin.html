@@ -212,6 +212,12 @@
         </div>
     </div>
     
+    {% if request.query_params.get('notice') %}
+    <div style="background:#d4edda; border-left:4px solid #28a745; padding:12px 24px; font-size:14px; color:#155724;">
+        ✓ {{ request.query_params.get('notice') }}
+    </div>
+    {% endif %}
+
     <div class="container">
         <div class="section">
             <h2>Create New Co-op</h2>
@@ -342,34 +348,96 @@
             <p style="color: #666;">No admin users created yet.</p>
             {% endif %}
         </div>
-        <div class="section">
-            <h2>Admin Welcome Email Template</h2>
-            <p style="color: #666; margin-bottom: 20px; font-size: 14px;">
-                This email is sent to new co-op admins when you create their account. Leave fields blank to use the built-in default.
+        <div class="section" id="email-templates">
+            <h2>Email Templates</h2>
+            <p style="color:#666; font-size:14px; margin-bottom:24px;">
+                Platform-wide defaults for all outgoing emails. Co-op admins can override the member signup email from their own dashboard — their customisation takes priority over what's set here.
+                Editing a field and saving replaces the default; clearing a field and saving reverts to the built-in fallback.
             </p>
+
+            <!-- Member Signup Confirmation -->
+            <h3 style="font-size:15px; font-weight:600; color:#2c5f2d; border-bottom:1px solid #e0e0e0; padding-bottom:8px; margin-bottom:16px;">Member Signup Confirmation</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:14px;">Sent to the new member immediately after they complete signup.</p>
+            <form method="POST" action="/superadmin/update-member-email-settings">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                <div class="form-group" style="margin-bottom:12px;">
+                    <label>Subject</label>
+                    <input type="text" name="member_email_subject" value="{{ member_email_subject }}">
+                </div>
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label>Body (HTML)</label>
+                    <textarea name="member_email_body" style="width:100%; min-height:220px; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:monospace; font-size:12px; resize:vertical;">{{ member_email_body }}</textarea>
+                </div>
+                <div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:10px 14px; margin-bottom:14px; font-size:12px; line-height:1.8;">
+                    <strong>Placeholders:</strong>
+                    <code>{first_name}</code> <code>{last_name}</code> <code>{coop_name}</code> <code>{membership_type}</code>
+                    <code>{total_amount}</code> <code>{payment_plan_label}</code> <code>{payment_note}</code>
+                    <code>{email}</code> <code>{phone}</code> <code>{address}</code> <code>{city}</code> <code>{state}</code> <code>{zip}</code>
+                </div>
+                <button type="submit" class="btn">Save Member Email</button>
+            </form>
+
+            <!-- Admin Welcome -->
+            <h3 style="font-size:15px; font-weight:600; color:#2c5f2d; border-bottom:1px solid #e0e0e0; padding-bottom:8px; margin-top:32px; margin-bottom:16px;">Admin Welcome</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:14px;">Sent to a new co-op admin when you create their account.</p>
             <form method="POST" action="/superadmin/update-email-settings">
                 <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group" style="margin-bottom:12px;">
                     <label>Subject</label>
-                    <input type="text" name="admin_email_subject"
-                           value="{{ admin_email_subject }}"
-                           placeholder='Default: "Welcome to {coop_name} - Co-op Signup System"'>
+                    <input type="text" name="admin_email_subject" value="{{ admin_email_subject }}">
                 </div>
-                <div class="form-group" style="margin-bottom: 8px;">
+                <div class="form-group" style="margin-bottom:8px;">
                     <label>Body (HTML)</label>
-                    <textarea name="admin_email_body"
-                              placeholder="Leave blank to use the default template."
-                              style="width: 100%; min-height: 200px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-family: monospace; font-size: 13px; resize: vertical;">{{ admin_email_body }}</textarea>
+                    <textarea name="admin_email_body" style="width:100%; min-height:220px; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:monospace; font-size:12px; resize:vertical;">{{ admin_email_body }}</textarea>
                 </div>
-                <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-bottom: 15px; font-size: 13px;">
-                    <strong>Available placeholders:</strong>
-                    <code>{email}</code> &nbsp;
-                    <code>{coop_name}</code> &nbsp;
-                    <code>{temp_password}</code> &nbsp;
-                    <code>{login_url}</code>
+                <div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:10px 14px; margin-bottom:14px; font-size:12px; line-height:1.8;">
+                    <strong>Placeholders:</strong>
+                    <code>{email}</code> <code>{coop_name}</code> <code>{temp_password}</code> <code>{login_url}</code>
                 </div>
-                <button type="submit" class="btn">Save Email Template</button>
+                <button type="submit" class="btn">Save Admin Welcome Email</button>
             </form>
+
+            <!-- Digest Report -->
+            <h3 style="font-size:15px; font-weight:600; color:#2c5f2d; border-bottom:1px solid #e0e0e0; padding-bottom:8px; margin-top:32px; margin-bottom:16px;">Digest Report</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:14px;">
+                Sent daily or weekly to co-ops with digest notifications enabled.
+                The member list and dashboard link are generated automatically — only the intro paragraph (the text that appears above the list) is editable here.
+                Leave blank to use the default <em>"N new members signed up in the past 24 hours."</em>
+            </p>
+            <form method="POST" action="/superadmin/update-digest-email-settings">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                <div class="form-group" style="margin-bottom:8px;">
+                    <label>Intro text (HTML, optional)</label>
+                    <textarea name="digest_intro" style="width:100%; min-height:80px; padding:8px; border:1px solid #ddd; border-radius:4px; font-family:monospace; font-size:12px; resize:vertical;" placeholder="Leave blank to use the default intro.">{{ digest_intro }}</textarea>
+                </div>
+                <div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:10px 14px; margin-bottom:14px; font-size:12px; line-height:1.8;">
+                    <strong>Placeholders:</strong>
+                    <code>{period_label}</code> <code>{count}</code> <code>{coop_name}</code>
+                </div>
+                <button type="submit" class="btn">Save Digest Intro</button>
+            </form>
+
+            <!-- Test Digest -->
+            <h3 style="font-size:15px; font-weight:600; color:#2c5f2d; border-bottom:1px solid #e0e0e0; padding-bottom:8px; margin-top:32px; margin-bottom:16px;">Send Test Digest</h3>
+            <p style="color:#666; font-size:13px; margin-bottom:14px;">Sends a real digest email (using the current intro template above) to the co-op's configured notification address. Includes actual signups from the selected period.</p>
+            {% set digest_coops = coops | selectattr('notification_email') | list %}
+            {% if digest_coops %}
+            <form method="POST" action="/superadmin/send-test-digest" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                <select name="coop_id" style="padding:7px 10px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+                    {% for coop in digest_coops %}
+                    <option value="{{ coop.id }}">{{ coop.name }} → {{ coop.notification_email }}</option>
+                    {% endfor %}
+                </select>
+                <select name="period" style="padding:7px 10px; border:1px solid #ccc; border-radius:4px; font-size:13px;">
+                    <option value="daily">Daily (last 25 hrs)</option>
+                    <option value="weekly">Weekly (last 7 days)</option>
+                </select>
+                <button type="submit" class="btn" style="background:#6f42c1;">Send Test</button>
+            </form>
+            {% else %}
+            <p style="color:#999; font-size:13px;">No co-ops have a notification email configured yet.</p>
+            {% endif %}
         </div>
     </div>
 

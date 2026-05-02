@@ -355,8 +355,12 @@ async def superadmin_page(request: Request, session_data: dict = Depends(require
         "coops": coops,
         "admin_users": admin_users,
         "session": session_data,
-        "admin_email_subject": db.get_system_setting('admin_welcome_subject') or '',
-        "admin_email_body": db.get_system_setting('admin_welcome_body') or '',
+        # Pre-populate with saved value, falling back to the actual hardcoded default
+        "member_email_subject": db.get_system_setting('default_member_subject') or email_service.DEFAULT_MEMBER_SUBJECT,
+        "member_email_body": db.get_system_setting('default_member_body') or email_service.DEFAULT_MEMBER_BODY,
+        "admin_email_subject": db.get_system_setting('admin_welcome_subject') or email_service.DEFAULT_ADMIN_SUBJECT,
+        "admin_email_body": db.get_system_setting('admin_welcome_body') or email_service.DEFAULT_ADMIN_BODY,
+        "digest_intro": db.get_system_setting('default_digest_intro') or '',
     })
 
 
@@ -370,9 +374,64 @@ async def superadmin_update_email_settings(request: Request,
     try:
         db.update_system_setting('admin_welcome_subject', admin_email_subject.strip() or None)
         db.update_system_setting('admin_welcome_body', admin_email_body.strip() or None)
-        return RedirectResponse("/superadmin", status_code=302)
+        return RedirectResponse("/superadmin#email-templates", status_code=302)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
+
+
+@app.post("/superadmin/update-member-email-settings")
+async def superadmin_update_member_email_settings(request: Request,
+                                                   member_email_subject: str = Form(''),
+                                                   member_email_body: str = Form(''),
+                                                   session_data: dict = Depends(require_superadmin),
+                                                   _csrf: None = Depends(check_csrf)):
+    """Update the platform default member signup confirmation email."""
+    try:
+        db.update_system_setting('default_member_subject', member_email_subject.strip() or None)
+        db.update_system_setting('default_member_body', member_email_body.strip() or None)
+        return RedirectResponse("/superadmin#email-templates", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
+
+
+@app.post("/superadmin/update-digest-email-settings")
+async def superadmin_update_digest_email_settings(request: Request,
+                                                   digest_intro: str = Form(''),
+                                                   session_data: dict = Depends(require_superadmin),
+                                                   _csrf: None = Depends(check_csrf)):
+    """Update the platform default digest email intro text."""
+    try:
+        db.update_system_setting('default_digest_intro', digest_intro.strip() or None)
+        return RedirectResponse("/superadmin#email-templates", status_code=302)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
+
+
+@app.post("/superadmin/send-test-digest")
+async def send_test_digest_global(request: Request,
+                                   coop_id: int = Form(...),
+                                   period: str = Form('daily'),
+                                   session_data: dict = Depends(require_superadmin),
+                                   _csrf: None = Depends(check_csrf)):
+    """Send a test digest email for any co-op (superadmin tool)."""
+    coop = db.get_coop_by_id(coop_id)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not coop.get('notification_email'):
+        raise HTTPException(status_code=400, detail="This co-op has no notification email configured")
+
+    from datetime import timezone, timedelta
+    hours = 25 if period == 'daily' else 169
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    members = db.get_members_since(coop_id, cutoff)
+    custom_intro = db.get_system_setting('default_digest_intro') or None
+
+    await email_service.send_digest_email(
+        coop['notification_email'], coop['name'], period, members, coop['slug'],
+        custom_intro=custom_intro,
+    )
+    notice = f"Test {'daily' if period == 'daily' else 'weekly'} digest sent to {coop['notification_email']}"
+    return RedirectResponse(f"/superadmin?notice={notice}#email-templates", status_code=302)
 
 @app.post("/superadmin/create-coop")
 async def create_coop(request: Request,
@@ -542,6 +601,30 @@ async def exit_impersonation(request: Request):
         samesite='lax',
     )
     return response
+
+
+@app.post("/superadmin/coops/{coop_id}/send-test-digest")
+async def send_test_digest(request: Request, coop_id: int,
+                           period: str = Form('daily'),
+                           session_data: dict = Depends(require_superadmin),
+                           _csrf: None = Depends(check_csrf)):
+    """Send a test digest email for a specific co-op to its notification address."""
+    coop = db.get_coop_by_id(coop_id)
+    if not coop:
+        raise HTTPException(status_code=404, detail="Co-op not found")
+    if not coop.get('notification_email'):
+        raise HTTPException(status_code=400, detail="This co-op has no notification email configured")
+
+    from datetime import timezone, timedelta
+    hours = 25 if period == 'daily' else 169
+    cutoff = datetime.now(tz=timezone.utc) - timedelta(hours=hours)
+    members = db.get_members_since(coop_id, cutoff)
+
+    await email_service.send_digest_email(
+        coop['notification_email'], coop['name'], period, members, coop['slug']
+    )
+    notice = f"Test {'daily' if period == 'daily' else 'weekly'} digest sent to {coop['notification_email']}"
+    return RedirectResponse(f"/superadmin?notice={notice}", status_code=302)
 
 
 @app.post("/superadmin/coops/{coop_id}/toggle-payments")
@@ -889,6 +972,9 @@ async def submit_signup(request: Request, slug: str,
         # Send confirmation email (if enabled for this co-op)
         if membership_type and coop.get('send_member_emails', True):
             total_amount = result['equity_amount'] + result['signup_fee']
+            # Priority: co-op override → system default → hardcoded constant
+            system_subject = db.get_system_setting('default_member_subject') or None
+            system_body = db.get_system_setting('default_member_body') or None
             await email_service.send_member_confirmation_email(
                 email, coop['name'], result['member_number'],
                 first_name, membership_type['name'], total_amount, payment_plan,
@@ -899,8 +985,8 @@ async def submit_signup(request: Request, slug: str,
                 state=state,
                 zip_code=zip,
                 reply_to=coop.get('contact_email') or None,
-                custom_subject=coop.get('member_email_subject') or None,
-                custom_body=coop.get('member_email_body') or None,
+                custom_subject=coop.get('member_email_subject') or system_subject,
+                custom_body=coop.get('member_email_body') or system_body,
             )
 
         # Send signup notification to admin (if enabled)

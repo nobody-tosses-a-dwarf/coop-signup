@@ -260,7 +260,8 @@ async def send_signup_notification(notification_email: str, coop_name: str,
 
 
 async def send_digest_email(notification_email: str, coop_name: str,
-                            period: str, members: list, slug: str = ''):
+                            period: str, members: list, slug: str = '',
+                            custom_intro: Optional[str] = None):
     """Send a daily or weekly digest of new signups to the co-op admin."""
     import os
     period_label = 'Daily' if period == 'daily' else 'Weekly'
@@ -276,6 +277,13 @@ async def send_digest_email(notification_email: str, coop_name: str,
         for m in members
     )
 
+    intro_variables = {'period_label': period_label, 'count': str(count), 'coop_name': coop_name}
+    if custom_intro:
+        intro_html = apply_placeholders(custom_intro, intro_variables)
+    else:
+        period_hours = '24 hours' if period == 'daily' else '7 days'
+        intro_html = f"<p><strong>{count}</strong> new member{'s' if count != 1 else ''} signed up in the past {period_hours}.</p>"
+
     base_domain = os.getenv('BASE_DOMAIN', 'coopsignup.com')
     dashboard_url = f"https://{base_domain}/{slug}/admin" if slug else ''
     dashboard_link = (
@@ -288,7 +296,7 @@ async def send_digest_email(notification_email: str, coop_name: str,
     html_content = f"""
 <html><body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
 <h2 style="color: #2c5f2d;">{period_label} Signup Report — {coop_name}</h2>
-<p><strong>{count}</strong> new member{'s' if count != 1 else ''} signed up in the past {'24 hours' if period == 'daily' else '7 days'}.</p>
+{intro_html}
 <table style="border-collapse:collapse; margin-top:12px; width:100%; max-width:500px;">
   <thead>
     <tr style="border-bottom:2px solid #e0e0e0;">
