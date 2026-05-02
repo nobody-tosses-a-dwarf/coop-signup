@@ -945,6 +945,15 @@
             <div class="section">
                 <div class="collapsible" id="emailAdvToggle">Custom Email Template &amp; Mailchimp</div>
                 <div class="collapsible-content" id="emailAdvContent">
+                <style>
+                    .var-pills-admin { display:flex; flex-wrap:wrap; gap:5px; margin-top:8px; }
+                    .var-pill-admin { background:#e8f5e9; color:#2c5f2d; border:1px solid #c8e6c9; border-radius:12px; padding:2px 9px; font-family:monospace; font-size:11px; white-space:nowrap; }
+                    .email-actions-admin { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:14px; }
+                    .btn-ghost-admin { background:#fff; color:#555; border:1px solid #ccc; padding:7px 14px; border-radius:4px; font-size:13px; cursor:pointer; }
+                    .btn-ghost-admin:hover { background:#f5f5f5; }
+                    .btn-preview-admin { background:#6f42c1; color:#fff; border:none; padding:7px 14px; border-radius:4px; font-size:13px; cursor:pointer; }
+                    .btn-preview-admin:hover { background:#5a32a3; }
+                </style>
                 <form method="POST" action="/{{ coop.slug }}/admin/update-email-settings">
                     <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
                     <input type="hidden" name="contact_email" value="{{ coop.contact_email or '' }}">
@@ -952,7 +961,7 @@
 
                     <div class="form-group" style="margin-bottom: 15px;">
                         <label>Confirmation Email Subject</label>
-                        <input type="text" name="member_email_subject"
+                        <input id="admin-member-subject" type="text" name="member_email_subject"
                                value="{{ coop.member_email_subject or '' }}"
                                placeholder="Leave blank to use default: &quot;Welcome to {coop_name}!&quot;"
                                style="max-width: 500px;">
@@ -960,19 +969,26 @@
 
                     <div class="form-group">
                         <label>Confirmation Email Body (HTML)</label>
-                        <textarea name="member_email_body"
+                        <textarea id="admin-member-body" name="member_email_body"
                                   placeholder="Leave blank to use the default template."
                                   style="min-height: 200px; font-family: monospace; font-size: 13px;">{{ coop.member_email_body or '' }}</textarea>
-                        <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 12px; margin-top: 8px; font-size: 13px;">
-                            <strong>Available placeholders:</strong>
-                            <code>{first_name}</code> &nbsp;
-                            <code>{coop_name}</code> &nbsp;
-                            <code>{member_number}</code> &nbsp;
-                            <code>{membership_type}</code> &nbsp;
-                            <code>{total_amount}</code> &nbsp;
-                            <code>{payment_plan}</code> &nbsp;
-                            <code>{payment_plan_label}</code>
+                        <div style="background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; padding:10px 14px; margin-top:8px; font-size:12px;">
+                            <strong style="color:#555; display:block; margin-bottom:6px;">Available placeholders:</strong>
+                            <div class="var-pills-admin">
+                                <span class="var-pill-admin">{first_name}</span><span class="var-pill-admin">{last_name}</span><span class="var-pill-admin">{coop_name}</span><span class="var-pill-admin">{membership_type}</span>
+                                <span class="var-pill-admin">{total_amount}</span><span class="var-pill-admin">{payment_plan_label}</span><span class="var-pill-admin">{payment_note}</span>
+                                <span class="var-pill-admin">{email}</span><span class="var-pill-admin">{phone}</span><span class="var-pill-admin">{address}</span><span class="var-pill-admin">{city}</span><span class="var-pill-admin">{state}</span><span class="var-pill-admin">{zip}</span>
+                            </div>
                         </div>
+                    </div>
+
+                    <div class="email-actions-admin">
+                        <button type="submit" class="btn">Save</button>
+                        <button type="button" class="btn-preview-admin" onclick="previewMemberEmail()">Preview</button>
+                        <form method="POST" action="/{{ coop.slug }}/admin/reset-member-email" style="display:inline;" onsubmit="return confirm('Clear your custom email template and revert to the platform default?')">
+                            <input type="hidden" name="csrf_token" value="{{ request.state.csrf_token }}">
+                            <button type="submit" class="btn-ghost-admin">Reset to Default</button>
+                        </form>
                     </div>
 
                     <hr style="border: none; border-top: 1px solid #e0e0e0; margin: 25px 0;">
@@ -1394,6 +1410,24 @@
 
         function confirmDelta() {
             return confirm('Download new members?\n\nThis advances the export cutoff — the next "New Members" export will only include members added after now.');
+        }
+
+        function previewMemberEmail() {
+            const csrf = document.querySelector('[name="csrf_token"]').value;
+            const subject = document.getElementById('admin-member-subject').value;
+            const body = document.getElementById('admin-member-body').value;
+            const form = document.createElement('form');
+            form.method = 'POST';
+            form.action = '/{{ coop.slug }}/admin/preview-member-email';
+            form.target = '_blank';
+            [['csrf_token', csrf], ['subject', subject], ['body', body]].forEach(([k, v]) => {
+                const inp = document.createElement('input');
+                inp.type = 'hidden'; inp.name = k; inp.value = v;
+                form.appendChild(inp);
+            });
+            document.body.appendChild(form);
+            form.submit();
+            document.body.removeChild(form);
         }
     </script>
 </body>

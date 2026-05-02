@@ -1484,6 +1484,87 @@ async def update_email_settings(request: Request, slug: str,
         raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
 
 
+@app.post("/{slug}/admin/preview-member-email")
+async def admin_preview_member_email(request: Request, slug: str,
+                                     subject: str = Form(''),
+                                     body: str = Form(''),
+                                     session_data: dict = Depends(require_auth),
+                                     _csrf: None = Depends(check_csrf)):
+    """Render a preview of the member confirmation email for a co-op admin."""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404)
+    if not session_data.get('is_superadmin') and session_data.get('coop_id') != coop['id']:
+        raise HTTPException(status_code=403)
+
+    effective_subject = subject.strip() or db.get_system_setting('default_member_subject') or email_service.DEFAULT_MEMBER_SUBJECT
+    effective_body = body.strip() or db.get_system_setting('default_member_body') or email_service.DEFAULT_MEMBER_BODY
+    using_default = not subject.strip() and not body.strip()
+
+    vars_ = {
+        'first_name': 'Jane', 'last_name': 'Smith', 'coop_name': coop['name'],
+        'membership_type': 'Full Member', 'total_amount': '250.00',
+        'payment_plan': 'full', 'payment_plan_label': 'Paid in Full',
+        'payment_note': 'Your equity has been paid in full — no further payments are required. We look forward to seeing you at the co-op!',
+        'member_number': '42', 'email': 'jane@example.com', 'phone': '(555) 123-4567',
+        'address': '123 Main St', 'city': 'Springfield', 'state': 'OR', 'zip': '97201',
+    }
+    rendered_subject = email_service.apply_placeholders(effective_subject, vars_)
+    rendered_body = email_service.apply_placeholders(effective_body, vars_)
+    default_note = '<div style="background:#fff3cd;padding:8px 14px;font-size:12px;border-bottom:1px solid #ffe69c;">Showing platform default — no custom template saved for this co-op.</div>' if using_default else ''
+
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Preview: {rendered_subject}</title>
+<style>
+  *{{margin:0;padding:0;box-sizing:border-box;}}
+  body{{background:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
+  .bar{{background:#2c5f2d;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;font-size:13px;position:sticky;top:0;z-index:10;}}
+  .bar .label{{opacity:.7;}} .bar .subj{{font-weight:600;font-size:14px;}} .bar .note{{margin-left:auto;opacity:.5;font-size:11px;}}
+  .wrapper{{max-width:660px;margin:28px auto 48px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.15);}}
+  .meta{{padding:14px 24px;background:#f8f9fa;border-bottom:1px solid #e0e0e0;font-size:13px;color:#555;}}
+  .meta .subj-line{{font-size:16px;font-weight:600;color:#222;margin-bottom:4px;}}
+  .content{{padding:0;}}
+</style></head>
+<body>
+<div class="bar">
+  <span class="label">Email Preview</span>
+  <span class="subj">{rendered_subject}</span>
+  <span class="note">Sample data — not a real email</span>
+</div>
+<div class="wrapper">
+  {default_note}
+  <div class="meta">
+    <div class="subj-line">{rendered_subject}</div>
+    <div>To: jane@example.com &nbsp;&middot;&nbsp; From: noreply@coopsignup.com</div>
+  </div>
+  <div class="content">{rendered_body}</div>
+</div>
+</body></html>"""
+    return HTMLResponse(content=html)
+
+
+@app.post("/{slug}/admin/reset-member-email")
+async def admin_reset_member_email(request: Request, slug: str,
+                                   session_data: dict = Depends(require_auth),
+                                   _csrf: None = Depends(check_csrf)):
+    """Clear the co-op's custom member email template (reverts to platform default)."""
+    coop = db.get_coop_by_slug(slug)
+    if not coop:
+        raise HTTPException(status_code=404)
+    if not session_data.get('is_superadmin') and session_data.get('coop_id') != coop['id']:
+        raise HTTPException(status_code=403)
+    db.update_coop_email_settings(
+        coop['id'],
+        coop.get('contact_email'),
+        bool(coop.get('send_member_emails', True)),
+        None,
+        None,
+        coop.get('mailchimp_api_key'),
+        coop.get('mailchimp_audience_id'),
+    )
+    return RedirectResponse(f"/{slug}/admin", status_code=302)
+
+
 @app.get("/{slug}/admin/members/{member_id}/payments", response_class=HTMLResponse)
 async def member_payments_page(request: Request, slug: str, member_id: int,
                                session_data: dict = Depends(require_auth)):
