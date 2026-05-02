@@ -407,6 +407,110 @@ async def superadmin_update_digest_email_settings(request: Request,
         raise HTTPException(status_code=400, detail=f"Error updating email settings: {str(e)}")
 
 
+_EMAIL_PREVIEW_VARS = {
+    'member': {
+        'first_name': 'Jane', 'last_name': 'Smith', 'coop_name': 'Example Food Co-op',
+        'membership_type': 'Full Member', 'total_amount': '250.00',
+        'payment_plan': 'full', 'payment_plan_label': 'Paid in Full',
+        'payment_note': 'Your equity has been paid in full — no further payments are required. We look forward to seeing you at the co-op!',
+        'member_number': '42', 'email': 'jane@example.com', 'phone': '(555) 123-4567',
+        'address': '123 Main St', 'city': 'Springfield', 'state': 'OR', 'zip': '97201',
+    },
+    'admin': {
+        'email': 'admin@example.com', 'coop_name': 'Example Food Co-op',
+        'temp_password': 'TempPass123!', 'login_url': 'https://coopsignup.com/login',
+    },
+}
+
+
+@app.post("/superadmin/reset-email-settings")
+async def superadmin_reset_email_settings(request: Request,
+                                          section: str = Form(...),
+                                          session_data: dict = Depends(require_superadmin),
+                                          _csrf: None = Depends(check_csrf)):
+    """Clear DB overrides so hardcoded defaults take effect again."""
+    if section == 'member':
+        db.update_system_setting('default_member_subject', None)
+        db.update_system_setting('default_member_body', None)
+    elif section == 'admin':
+        db.update_system_setting('admin_welcome_subject', None)
+        db.update_system_setting('admin_welcome_body', None)
+    elif section == 'digest':
+        db.update_system_setting('default_digest_intro', None)
+    return RedirectResponse("/superadmin#email-templates", status_code=302)
+
+
+@app.post("/superadmin/preview-email")
+async def superadmin_preview_email(request: Request,
+                                   template_type: str = Form(...),
+                                   subject: str = Form(''),
+                                   body: str = Form(''),
+                                   session_data: dict = Depends(require_superadmin),
+                                   _csrf: None = Depends(check_csrf)):
+    """Return rendered preview HTML for a template, substituting sample variable values."""
+    if template_type == 'digest':
+        vars_ = {'period_label': 'Daily', 'count': '5', 'coop_name': 'Example Food Co-op'}
+        rendered_subject = 'Daily Signup Report — Example Food Co-op'
+        intro_html = email_service.apply_placeholders(body, vars_) if body.strip() else \
+            '<p><strong>5</strong> new members signed up in the past 24 hours.</p>'
+        sample_rows = ''.join(
+            f"<tr><td style='padding:6px 16px 6px 0;'>{n}</td>"
+            f"<td style='padding:6px 16px 6px 0;'>Full Member</td>"
+            f"<td style='padding:6px 0;'>Paid in Full</td></tr>"
+            for n in ['Alice Johnson', 'Bob Martinez', 'Carol Lee', 'David Kim', 'Eve Patel']
+        )
+        rendered_body = f"""
+<html><body style="font-family:Arial,sans-serif;color:#333;line-height:1.6;">
+<h2 style="color:#2c5f2d;">Daily Signup Report — Example Food Co-op</h2>
+{intro_html}
+<table style="border-collapse:collapse;margin-top:12px;width:100%;max-width:500px;">
+  <thead><tr style="border-bottom:2px solid #e0e0e0;">
+    <th style="text-align:left;padding:6px 16px 6px 0;font-size:12px;color:#888;text-transform:uppercase;">Name</th>
+    <th style="text-align:left;padding:6px 16px 6px 0;font-size:12px;color:#888;text-transform:uppercase;">Type</th>
+    <th style="text-align:left;padding:6px 0;font-size:12px;color:#888;text-transform:uppercase;">Plan</th>
+  </tr></thead>
+  <tbody>{sample_rows}</tbody>
+</table>
+<p style="margin-top:24px;"><a href="#" style="background:#2c5f2d;color:#fff;padding:10px 20px;border-radius:5px;text-decoration:none;font-size:14px;font-weight:500;">Open Admin Dashboard</a></p>
+<p style="margin-top:20px;font-size:13px;color:#888;">This is an automated report from the Co-op Signup System.</p>
+</body></html>"""
+    else:
+        vars_ = _EMAIL_PREVIEW_VARS.get(template_type, {})
+        rendered_subject = email_service.apply_placeholders(subject, vars_)
+        rendered_body = email_service.apply_placeholders(body, vars_)
+
+    to_addr = vars_.get('email', 'recipient@example.com')
+    html = f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Preview: {rendered_subject}</title>
+<style>
+  *{{margin:0;padding:0;box-sizing:border-box;}}
+  body{{background:#e8e8e8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}}
+  .bar{{background:#1a472a;color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;font-size:13px;position:sticky;top:0;z-index:10;}}
+  .bar .label{{opacity:.7;}}
+  .bar .subj{{font-weight:600;font-size:14px;}}
+  .bar .note{{margin-left:auto;opacity:.5;font-size:11px;}}
+  .wrapper{{max-width:660px;margin:28px auto 48px;background:#fff;border-radius:6px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,.15);}}
+  .meta{{padding:14px 24px;background:#f8f9fa;border-bottom:1px solid #e0e0e0;font-size:13px;color:#555;}}
+  .meta .subj-line{{font-size:16px;font-weight:600;color:#222;margin-bottom:4px;}}
+  .content{{padding:0;}}
+</style></head>
+<body>
+<div class="bar">
+  <span class="label">Email Preview</span>
+  <span class="subj">{rendered_subject}</span>
+  <span class="note">Sample data — not a real email</span>
+</div>
+<div class="wrapper">
+  <div class="meta">
+    <div class="subj-line">{rendered_subject}</div>
+    <div>To: {to_addr} &nbsp;&middot;&nbsp; From: noreply@coopsignup.com</div>
+  </div>
+  <div class="content">{rendered_body}</div>
+</div>
+</body></html>"""
+    return HTMLResponse(content=html)
+
+
 @app.post("/superadmin/send-test-digest")
 async def send_test_digest_global(request: Request,
                                    coop_id: int = Form(...),
