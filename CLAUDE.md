@@ -29,6 +29,12 @@ Each co-op gets its own slug, membership types, members, and admin users.
 ## Deploy
 **git push → GitHub → Render auto-deploys** (no manual steps needed)
 
+## Git workflow
+- **Pre-launch (current state):** commit + push directly to `main`. Don't propose branch/PR workflow for routine changes — site has no real users yet, blast radius is near-zero.
+- **Drastic changes (even pre-launch):** suggest a branch + PR before changes to schema/migrations, Stripe/payment logic, or auth. Ask first.
+- **Post-launch:** switch default to branch + PR for anything that affects production. Chris will say when launch happens.
+- **Always:** confirm with Chris before pushing — never push without explicit approval ("ship it", "push it", etc.).
+
 ## Environment variables (set in Render, local `.env`)
 - `DATABASE_URL` — PostgreSQL connection string (production only)
 - `SECRET_KEY` — session signing key
